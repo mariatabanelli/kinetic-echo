@@ -1,3 +1,4 @@
 pyserial>=3.5
 python-rtmidi>=1.5
 python-osc>=1.8
+websockets>=12

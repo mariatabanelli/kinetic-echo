@@ -18,8 +18,13 @@ OSC messages sent at the device rate (or 50 Hz in --sim):
     /ke/recovery  float
     /ke/all       six floats in one message
 
-Needs:  pip install pyserial python-osc
+--ws also serves the values as JSON over a WebSocket (ws://127.0.0.1:8765)
+for web/index.html.
+
+Needs:  pip install pyserial python-osc websockets
 """
+import json
+import threading
 import argparse
 import math
 import random
@@ -68,10 +73,48 @@ def main():
     ap.add_argument("--osc-port", type=int, default=7000)
     ap.add_argument("--sim", action="store_true", help="send simulated values, no device needed")
     ap.add_argument("--print", action="store_true", help="echo values to the terminal")
+    ap.add_argument("--ws", action="store_true", help="also serve JSON over WebSocket for web/index.html")
+    ap.add_argument("--ws-port", type=int, default=8765)
     args = ap.parse_args()
 
     client = SimpleUDPClient(args.host, args.osc_port)
     print(f"OSC -> {args.host}:{args.osc_port}  addresses /ke/<quality> and /ke/all")
+
+    clients = set()
+    lock = threading.Lock()
+    if args.ws:
+        from websockets.sync.server import serve
+
+        def handler(conn):
+            with lock:
+                clients.add(conn)
+            try:
+                for _ in conn:   # keep open; the browser sends nothing
+                    pass
+            finally:
+                with lock:
+                    clients.discard(conn)
+
+        def run_ws():
+            with serve(handler, "127.0.0.1", args.ws_port) as server:
+                server.serve_forever()
+
+        threading.Thread(target=run_ws, daemon=True).start()
+        print(f"WS  -> ws://127.0.0.1:{args.ws_port}  JSON {{flow,...,recovery}}")
+
+    def broadcast(vals):
+        if not clients:
+            return
+        msg = json.dumps({n: round(float(x), 4) for n, x in zip(QUALITIES, vals)})
+        with lock:
+            dead = []
+            for c in clients:
+                try:
+                    c.send(msg)
+                except Exception:
+                    dead.append(c)
+            for c in dead:
+                clients.discard(c)
 
     if args.sim:
         source = simulate()
@@ -96,6 +139,8 @@ def main():
             for name, v in zip(QUALITIES, vals):
                 client.send_message(f"/ke/{name}", float(v))
             client.send_message("/ke/all", [float(v) for v in vals])
+            if args.ws:
+                broadcast(vals)
             if args.print:
                 print("  ".join(f"{n} {v:.2f}" for n, v in zip(QUALITIES, vals)), end="\r")
     except KeyboardInterrupt:
