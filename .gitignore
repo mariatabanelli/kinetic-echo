@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Arduino / build
+build/
+*.bin
+*.uf2
+*.elf
+
+# CAD / EDA scratch
+*.bak
+*~
+*.lck
+*.dsn-backup
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+calibration/data/raw/
+*.csv.bak
