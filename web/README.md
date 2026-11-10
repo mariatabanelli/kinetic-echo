@@ -4,11 +4,23 @@ Two browser pieces, one file each, Three.js from a CDN, nothing to install. Both
 
 ## index.html · World
 
-A first-person field. Walk through a plane of glyph-points that moves the way the body moves: flow is the wind, drift turns it, tension raises the terrain, rhythm sends a wave out from where you stand, burst lifts everything near you for a moment, recovery flattens it.
+A first-person world grown from a seed: a plane of glyph-points, a sky, fireflies, and 103 forms of five kinds placed across 150 metres. At the centre stands the beacon, your live signature: tall with burst, wide with tension, twisting with flow, spinning with drift, ringed by rhythm, settling with recovery.
 
-Click to capture: a column of points rises where you aim, frozen with the six values at that instant, and keeps playing a tone on its own rhythm (pitch from flow, root from drift, filter from tension, decay from recovery, square wave on a burst). Every captured column is a step in a loop you build by moving. R releases them all.
+The ground moves the way the body moves: flow is the wind, drift turns it, tension raises the terrain, rhythm sends a wave out from where you stand, burst lifts everything near you for a moment.
 
-Keys: WASD walk, Shift run, mouse look, click or C capture, R release, B invert, S sim/live, H hide the HUD, Esc frees the mouse.
+Aim at a form and click: it wakes with the six values of that instant, lights the ground around it, and joins a 16-step loop at 84 BPM. Its rhythm value decides how often it plays (every 2, 4, 8 or 16 steps). Each kind has its own voice:
+
+| form | shape | voice |
+|---|---|---|
+| reed | tall stalk, leans in the wind, rings travel up it | pluck (pitch from flow, brightness from tension, decay from recovery) |
+| stone | low mound, breathes on the beat | thud (pitch drop set by burst) plus a click |
+| ring | flat on the ground, a spot runs round it | tick (noise, highpass by tension) |
+| arc | standing half-ring you walk under, light pours along it | hum (two detuned saws, held, filter by tension) |
+| thread | wavy line in the air, tightens with tension | bell (FM, ratio from drift, long decay from recovery) |
+
+Click an awake form to put it back to sleep. R sleeps everything. Drift chooses the root note for the whole world, so the key moves as you drift.
+
+Keys: WASD walk, Shift run, mouse look, click or C wake/sleep, R sleep all, B palette (ash, moss, ember, paper), S sim/live, H hide the HUD, Esc frees the mouse.
 
 ## field.html · Field
 
