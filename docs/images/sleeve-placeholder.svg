@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <rect width="1600" height="1000" fill="#efefed"/>
+  <!-- forearm sleeve, elbow at left, cuff at right -->
+  <g fill="#1d1d1b" stroke="none">
+    <path d="M 60 300 C 260 240, 700 250, 1120 300 C 1260 318, 1380 330, 1540 360 L 1540 640 C 1380 670, 1260 682, 1120 700 C 700 750, 260 760, 60 700 Z"/>
+  </g>
+  <!-- sleeve seams -->
+  <g fill="none" stroke="#3a3a38" stroke-width="3">
+    <path d="M 90 330 C 300 285, 720 295, 1110 335"/>
+    <path d="M 90 670 C 300 715, 720 705, 1110 665"/>
+    <path d="M 1340 348 L 1340 652" stroke-width="2"/>
+    <path d="M 1380 352 L 1380 648" stroke-width="2"/>
+  </g>
+  <!-- cuff -->
+  <path d="M 1400 352 L 1540 360 L 1540 640 L 1400 648 Z" fill="#161614"/>
+  <!-- sewn bezel ring -->
+  <g transform="translate(640 500)">
+    <circle r="150" fill="#262624"/>
+    <circle r="150" fill="none" stroke="#8c8c88" stroke-width="2" stroke-dasharray="6 8"/>
+    <circle r="130" fill="#0a0a0a"/>
+    <!-- puck rim -->
+    <circle r="118" fill="#111" stroke="#2b2b29" stroke-width="6"/>
+    <!-- display glass -->
+    <circle r="96" fill="#f4f4f1"/>
+    <!-- six wedge labels -->
+    <g font-family="Courier New, monospace" font-size="13" fill="#555" text-anchor="middle">
+      <text x="0" y="-78">FLOW</text>
+      <text x="70" y="-36">BRST</text>
+      <text x="70" y="48">TENS</text>
+      <text x="0" y="88">RHTM</text>
+      <text x="-70" y="48">DRFT</text>
+      <text x="-70" y="-36">RECV</text>
+    </g>
+    <!-- character field: dense in the FLOW and RHTM wedges, sparse elsewhere -->
+    <g fill="#1d1d1b" font-family="Courier New, monospace" font-size="11" text-anchor="middle">
+      <text y="-62">. : . # # # : . .</text>
+      <text y="-50">. : # # # # # : .</text>
+      <text y="-38">: . : # # # : . :</text>
+      <text y="-26">. . : : . : : . .</text>
+      <text y="-14">: . . . : . . . :</text>
+      <text y="-2">. . : . # . : . .</text>
+      <text y="10">. : . . : . . : .</text>
+      <text y="22">. . : # # # : . .</text>
+      <text y="34">: . # # # # # . :</text>
+      <text y="46">. . : # # # : . .</text>
+      <text y="58">. . . : # : . . .</text>
+      <text y="70">. . . . : . . . .</text>
+    </g>
+    <!-- three rim buttons -->
+    <g fill="#3a3a38">
+      <circle cx="-104" cy="-58" r="6"/>
+      <circle cx="-119" cy="0" r="6"/>
+      <circle cx="-104" cy="58" r="6"/>
+    </g>
+    <!-- highlight on the glass -->
+    <path d="M -70 -60 A 92 92 0 0 1 20 -92" fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="3"/>
+  </g>
+  <text x="60" y="940" font-family="Helvetica, Arial, sans-serif" font-size="22" fill="#6a6a66">Kinetic Echo on the sleeve · illustration, not a photograph · puck 43 mm, sewn bezel</text>
+</svg>
