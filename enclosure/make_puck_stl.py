@@ -7,11 +7,11 @@ import trimesh
 from trimesh.creation import cylinder, box
 
 # ---------- measure these ----------
-display_pcb_d    = 36.0
+display_pcb_d    = 38.0   # common 7-pin round module: 36 to 38 mm circle; measure yours
 display_active_d = 32.4
 display_glass_h  = 2.0
 display_pcb_t    = 1.6
-stack_below      = 9.0
+stack_below      = 12.0   # Zero (3.2) + perfboard (1.6) + LiPo 503035 (5.0) + wiring margin
 
 # ---------- choose these ----------
 wall        = 2.0
@@ -23,6 +23,7 @@ button_angles = [150, 180, 210]
 usbc_w, usbc_h     = 9.2, 3.4
 switch_w, switch_h = 7.0, 3.0
 bezel_lip   = 2.5
+tab_w, tab_l, tab_h = 12.5, 9.0, 3.6   # pocket for the display PCB header tab, at 270 degrees
 SEG = 160
 
 inner_d = display_pcb_d + 2 * clearance
@@ -58,6 +59,8 @@ shell = cyl(outer_d, outer_h).union(cyl(outer_d + 2 * bezel_lip, 1.6, floor_t))
 shell = shell.difference(cyl(inner_d, inner_h + 1, floor_t))
 shell = shell.difference(side_cut(usbc_w, usbc_h, floor_t + 1.5, 0))
 shell = shell.difference(side_cut(switch_w, switch_h, floor_t + 1.5, 90))
+# pocket in the wall for the display header tab (sits in the display PCB plane)
+shell = shell.difference(side_cut(tab_w, tab_h, floor_t + stack_below - 1.0, 270, depth=tab_l))
 for a in button_angles:
     shell = shell.difference(button_hole(a))
 for a in [45, 135, 225, 315]:

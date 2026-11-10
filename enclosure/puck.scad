@@ -3,11 +3,11 @@
 // Print: PLA or PETG, 0.2 mm layers, shell and lid printed face down, no supports.
 
 // ---------- measure these ----------
-display_pcb_d   = 36.0;   // diameter of the round GC9A01 module PCB (measure)
+display_pcb_d   = 38.0;   // common 7-pin round module: 36 to 38 mm circle; measure yours
 display_active_d= 32.4;   // visible glass diameter
 display_glass_h = 2.0;    // glass + cover height above the PCB
 display_pcb_t   = 1.6;    // PCB thickness
-stack_below     = 9.0;    // everything under the display: perfboard + Zero + IMU + battery (measure tallest path)
+stack_below     = 12.0;   // Zero 3.2 + perfboard 1.6 + LiPo 503035 5.0 + margin
 battery_l       = 30.0;   // LiPo footprint (only used for a check print)
 battery_w       = 20.0;
 battery_t       = 5.0;
