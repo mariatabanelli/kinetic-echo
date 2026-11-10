@@ -17,4 +17,4 @@
 
 On the RP2350-Zero, GP16 to GP25 are on the castellated pads on the back of the board, not the side headers. Either wire the display to those pads or move the display to GP8 to GP15 on the side and update this table and `firmware/kinetic_echo/config.h`.
 
-Confirmed pin map after bring-up: _to be filled on 21 Nov 2026_.
+These are the pins in `kinetic_echo_ascii.ino` today (Arduino_RPiPicoSPI(16, 17, 18, 19): DC 16, CS 17, SCK 18, MOSI 19; GC9A01 RST 20; Wire SDA 4, SCL 5). Confirmed on the RP2350-Zero: _to be filled on 21 Nov 2026_.
