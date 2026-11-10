@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1500" viewBox="0 0 1200 1500">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e6e6e3"/>
+      <stop offset="1" stop-color="#d2d2cf"/>
+    </linearGradient>
+    <linearGradient id="shell" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2a2a28"/>
+      <stop offset="0.5" stop-color="#1b1b19"/>
+      <stop offset="1" stop-color="#121211"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#000" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="1500" fill="url(#bg)"/>
+  <!-- floor shadow -->
+  <ellipse cx="610" cy="1190" rx="420" ry="90" fill="url(#shadow)"/>
+
+  <g transform="translate(600 720) rotate(-8) translate(-600 -720)">
+    <!-- sleeves -->
+    <path d="M 300 420 C 230 470, 150 650, 120 860 C 110 920, 150 960, 215 960 C 270 960, 300 930, 310 880 C 340 720, 380 600, 420 520 Z" fill="url(#shell)"/>
+    <path d="M 900 420 C 970 470, 1050 650, 1080 860 C 1090 920, 1050 960, 985 960 C 930 960, 900 930, 890 880 C 860 720, 820 600, 780 520 Z" fill="url(#shell)"/>
+    <!-- cuffs, ribbed -->
+    <path d="M 118 870 C 150 905, 230 905, 262 870 L 275 935 C 240 975, 140 975, 108 935 Z" fill="#101010"/>
+    <path d="M 1082 870 C 1050 905, 970 905, 938 870 L 925 935 C 960 975, 1060 975, 1092 935 Z" fill="#101010"/>
+    <!-- body -->
+    <path d="M 300 420 C 380 370, 470 350, 600 350 C 730 350, 820 370, 900 420 C 880 560, 860 760, 860 940 L 340 940 C 340 760, 320 560, 300 420 Z" fill="url(#shell)"/>
+    <!-- hem, ribbed -->
+    <path d="M 335 935 L 865 935 L 870 1010 C 760 1035, 440 1035, 330 1010 Z" fill="#101010"/>
+    <!-- collar -->
+    <path d="M 500 352 C 530 330, 670 330, 700 352 C 690 385, 650 400, 600 402 C 550 400, 510 385, 500 352 Z" fill="#101010"/>
+    <!-- zip -->
+    <line x1="600" y1="400" x2="600" y2="935" stroke="#0a0a0a" stroke-width="8"/>
+    <line x1="600" y1="400" x2="600" y2="935" stroke="#3a3a38" stroke-width="2" stroke-dasharray="4 4"/>
+    <!-- chest pockets -->
+    <path d="M 400 560 L 540 560 L 536 680 L 410 680 Z" fill="#1f1f1d"/>
+    <path d="M 396 552 L 544 552 L 542 585 L 398 585 Z" fill="#161614"/>
+    <path d="M 660 560 L 800 560 L 790 680 L 664 680 Z" fill="#1f1f1d"/>
+    <path d="M 656 552 L 804 552 L 802 585 L 658 585 Z" fill="#161614"/>
+    <!-- sheen -->
+    <path d="M 300 420 C 380 370, 470 350, 600 350 C 730 350, 820 370, 900 420 C 880 560, 860 760, 860 940 L 340 940 C 340 760, 320 560, 300 420 Z" fill="url(#sheen)"/>
+    <path d="M 300 420 C 230 470, 150 650, 120 860 C 110 920, 150 960, 215 960 C 270 960, 300 930, 310 880 C 340 720, 380 600, 420 520 Z" fill="url(#sheen)"/>
+    <!-- seam lines -->
+    <g fill="none" stroke="#3a3a38" stroke-width="2">
+      <path d="M 300 420 C 330 450, 390 480, 420 520"/>
+      <path d="M 900 420 C 870 450, 810 480, 780 520"/>
+      <path d="M 250 600 C 300 610, 340 600, 370 580"/>
+    </g>
+
+    <!-- puck on the upper left sleeve -->
+    <g transform="translate(272 612) rotate(-18)">
+      <!-- sewn bezel -->
+      <ellipse rx="66" ry="60" fill="#242422"/>
+      <ellipse rx="66" ry="60" fill="none" stroke="#7d7d79" stroke-width="2" stroke-dasharray="5 7"/>
+      <!-- puck rim -->
+      <ellipse rx="54" ry="49" fill="#0b0b0b" stroke="#2c2c2a" stroke-width="5"/>
+      <!-- glass -->
+      <ellipse rx="42" ry="38" fill="#f3f3f0"/>
+      <!-- character field -->
+      <g fill="#1d1d1b" font-family="Courier New, monospace" font-size="6.5" text-anchor="middle">
+        <text y="-26">. : # # # : .</text>
+        <text y="-19">: # # # # # :</text>
+        <text y="-12">. : # # # : .</text>
+        <text y="-5">. . : : : . .</text>
+        <text y="2">: . . # . . :</text>
+        <text y="9">. . : # : . .</text>
+        <text y="16">. : # # # : .</text>
+        <text y="23">. . : # : . .</text>
+        <text y="30">. . . : . . .</text>
+      </g>
+      <!-- highlight -->
+      <path d="M -30 -22 A 40 36 0 0 1 8 -37" fill="none" stroke="#fff" stroke-opacity="0.55" stroke-width="2.5"/>
+    </g>
+  </g>
+
+  <text x="60" y="1420" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="#6a6a66">Kinetic Echo, puck seated in a sewn bezel on the upper sleeve · illustration, not a photograph</text>
+</svg>
