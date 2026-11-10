@@ -2,288 +2,348 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Kinetic Echo · Field</title>
+<title>Kinetic Echo · World</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  html, body { margin:0; height:100%; background:#f4f4f1; overflow:hidden; font-family: "Courier New", Courier, monospace; }
-  body.dark { background:#070707; }
+  html, body { margin:0; height:100%; background:#070707; overflow:hidden; font-family:"Courier New", Courier, monospace; color:#d8d8d4; }
+  body.light { background:#f4f4f1; color:#1d1d1b; }
   canvas { display:block; }
-  #hud { position:fixed; left:18px; bottom:16px; font-size:12px; line-height:1.6; color:#1d1d1b; letter-spacing:.08em; user-select:none; }
-  body.dark #hud { color:#d8d8d4; }
-  #hud .row { display:flex; gap:10px; align-items:center; }
-  #hud .name { width:72px; text-transform:uppercase; }
-  #hud .bar { font-variant-numeric: tabular-nums; }
-  #title { position:fixed; left:18px; top:16px; font-size:12px; letter-spacing:.12em; color:#1d1d1b; text-transform:uppercase; }
-  body.dark #title { color:#d8d8d4; }
-  #help { position:fixed; right:18px; bottom:16px; font-size:11px; line-height:1.6; color:#6a6a66; text-align:right; letter-spacing:.06em; }
-  #status { position:fixed; right:18px; top:16px; font-size:11px; letter-spacing:.1em; color:#6a6a66; text-transform:uppercase; }
+  .ui { position:fixed; font-size:11px; letter-spacing:.1em; line-height:1.7; user-select:none; text-transform:uppercase; }
+  #title { left:18px; top:14px; }
+  #status { right:18px; top:14px; text-align:right; opacity:.7; }
+  #hud { left:18px; bottom:14px; }
+  #hud .row { display:flex; gap:10px; } #hud .name { width:80px; } #hud .bar { font-variant-numeric:tabular-nums; }
+  #help { right:18px; bottom:14px; text-align:right; opacity:.7; }
+  #enter { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(7,7,7,.0); cursor:pointer; }
+  #enter .box { border:1px solid currentColor; padding:18px 26px; font-size:12px; letter-spacing:.14em; text-transform:uppercase; }
+  #enter .sub { font-size:11px; opacity:.6; letter-spacing:.08em; text-align:center; line-height:1.8; }
+  .hidden { display:none !important; }
+  #cross { position:fixed; left:50%; top:50%; width:10px; height:10px; margin:-5px 0 0 -5px; pointer-events:none; }
+  #cross:before, #cross:after { content:""; position:absolute; background:currentColor; opacity:.7; }
+  #cross:before { left:4px; top:0; width:2px; height:10px; } #cross:after { top:4px; left:0; width:10px; height:2px; }
 </style>
 </head>
 <body>
-<div id="title">Kinetic Echo · Field</div>
-<div id="status">SIM</div>
-<div id="hud"></div>
-<div id="help">
-  C capture · R release · B invert · S sim/live · F fullscreen · H hide
+<div id="title" class="ui">Kinetic Echo · World</div>
+<div id="status" class="ui">SIM</div>
+<div id="hud" class="ui"></div>
+<div id="help" class="ui">
+  WASD walk · mouse look · click capture · R release<br>B invert · S sim/live · H hide · ESC free the mouse
+</div>
+<div id="cross" class="hidden"></div>
+<div id="enter">
+  <div class="box">Click to enter</div>
+  <div class="sub">A field that moves the way you move.<br>Walk into it. Click to leave a signature where you stand. Each one keeps playing.</div>
 </div>
 <canvas id="c"></canvas>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 // ------------------------------------------------------------------
-// Kinetic Echo · Field
-// A field of glyph-points arranged in six wedges, one per quality.
-// Driven by six values 0..1: flow, burst, tension, rhythm, drift, recovery.
+// Kinetic Echo · World
+// A first-person field of glyph-points driven by six movement qualities.
+// flow, burst, tension, rhythm, drift, recovery  (0..1 each)
 // Live: JSON over WebSocket from bridge/ke_osc_bridge.py --ws
-//       {"flow":0.5,"burst":0.1,"tension":0.3,"rhythm":0.4,"drift":0.2,"recovery":0.6}
-// Sim:  built in, press S to toggle.
-// Capture (C) freezes the current field as a layer that stays; Release (R) clears layers.
+// Sim:  built in (press S).
+// Click: capture. A column of points rises where you aim, frozen with the
+//        current six values, and keeps playing a tone on its own rhythm.
+// R:     release all captured columns.
 // ------------------------------------------------------------------
 
 const QUAL = ["flow","burst","tension","rhythm","drift","recovery"];
-const LABEL = ["FLOW","BRST","TENS","RHTM","DRFT","RECV"];
-const N = 160000;            // points in the live field
-const R = 1.0;               // disc radius in world units
+const v = [0.4,0.0,0.2,0.3,0.1,0.6], target = v.slice();
+const A = [0.15,0.5,0.12,0.10,0.08,0.12];
+let sim = true, ws = null, light = false, hideUI = false, burstFlash = 0, prevBurst = 0;
 
-// ---------- state ----------
-const v = [0.3,0.0,0.2,0.2,0.1,0.6];     // smoothed values
-const target = [0.3,0.0,0.2,0.2,0.1,0.6];
-let sim = true, dark = false, hideUI = false;
-let ws = null;
-let burstFlash = 0;
-
-// ---------- renderer ----------
+// ---------- renderer / scene ----------
 const canvas = document.getElementById("c");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, powerPreference:"high-performance" });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new THREE.Scene();
-const cam = new THREE.PerspectiveCamera(38, 1, 0.01, 50);
-cam.position.set(0, 0, 3.2);
-cam.lookAt(0,0,0);
-
-function resize(){
-  const w = innerWidth, h = innerHeight;
-  renderer.setSize(w, h, false);
-  cam.aspect = w/h; cam.updateProjectionMatrix();
-}
+const cam = new THREE.PerspectiveCamera(70, 1, 0.05, 220);
+function resize(){ renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth/innerHeight; cam.updateProjectionMatrix(); }
 addEventListener("resize", resize); resize();
 
-// ---------- geometry: disc of points, six wedges ----------
-function makeField(count, seed){
-  const pos = new Float32Array(count*3);
-  const att = new Float32Array(count*4);   // angle, radius01, wedge, random
-  let s = seed;
-  const rnd = () => { s = (s*1664525 + 1013904223) % 4294967296; return s/4294967296; };
-  for (let i=0;i<count;i++){
-    const a = rnd()*Math.PI*2;
-    const r = Math.sqrt(rnd());             // uniform over the disc
-    const wedge = Math.floor(((a + Math.PI/2) % (Math.PI*2)) / (Math.PI/3)) % 6;
-    pos[i*3]   = Math.cos(a)*r*R;
-    pos[i*3+1] = Math.sin(a)*r*R;
-    pos[i*3+2] = (rnd()-0.5)*0.08;
-    att[i*4]   = a; att[i*4+1] = r; att[i*4+2] = wedge; att[i*4+3] = rnd();
+// ---------- shared uniforms ----------
+const U = {
+  uVal:   { value: new Float32Array(6) },
+  uTime:  { value: 0 },
+  uFlash: { value: 0 },
+  uInk:   { value: new THREE.Color(0xe6e6e2) },
+  uBg:    { value: new THREE.Color(0x070707) },
+  uCam:   { value: new THREE.Vector3() },
+  uPix:   { value: renderer.getPixelRatio() },
+  uFog:   { value: 60.0 },
+};
+
+const noiseGLSL = `
+  float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+  float noise(vec2 p){
+    vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+    return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y);
+  }
+  float fbm(vec2 p){ float s=0.0, a=0.5; for(int k=0;k<4;k++){ s+=a*noise(p); p*=2.03; a*=0.5; } return s; }
+`;
+
+// ---------- ground: a plane of glyph-points that breathes with the body ----------
+const GW = 420, GH = 420, GS = 0.42;     // grid cells and spacing (world ~176 m square)
+function makeGround(){
+  const n = GW*GH, pos = new Float32Array(n*3), rnd = new Float32Array(n*2);
+  let k = 0;
+  for (let j=0;j<GH;j++) for (let i=0;i<GW;i++){
+    pos[k*3] = (i-GW/2)*GS + (Math.random()-0.5)*GS*0.6;
+    pos[k*3+1] = 0;
+    pos[k*3+2] = (j-GH/2)*GS + (Math.random()-0.5)*GS*0.6;
+    rnd[k*2] = Math.random(); rnd[k*2+1] = Math.random(); k++;
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos,3));
-  g.setAttribute("aAtt", new THREE.Float32BufferAttribute(att,4));
+  g.setAttribute("aRnd", new THREE.Float32BufferAttribute(rnd,2));
   return g;
 }
-
-const vert = `
-  attribute vec4 aAtt;           // angle, radius01, wedge, random
-  uniform float uVal[6];         // six qualities
-  uniform float uTime;
-  uniform float uFlash;          // burst flash 0..1
-  uniform float uFrozen;         // 1 = captured layer (no motion)
-  uniform float uPix;
-  varying float vLevel;
-  varying float vRnd;
-  float hash(float n){ return fract(sin(n)*43758.5453); }
+const groundVert = `
+  attribute vec2 aRnd;
+  uniform float uVal[6]; uniform float uTime; uniform float uFlash; uniform vec3 uCam; uniform float uPix;
+  varying float vLevel; varying float vDist; varying float vRnd;
+  ${noiseGLSL}
   void main(){
-    float a = aAtt.x, r = aAtt.y, w = aAtt.z, rnd = aAtt.w;
-    int wi = int(w + 0.5);
-    float val = 0.0;
-    for (int k=0;k<6;k++){ if (k==wi) val = uVal[k]; }
-    float flow = uVal[0], burst = uVal[1], tens = uVal[2], rhy = uVal[3], drift = uVal[4], recov = uVal[5];
-    float t = uTime * (1.0 - uFrozen);
-    // level: density rises with the wedge value, fuller near the centre (same rule as the puck)
-    float level = clamp(val * 1.15 - r * 0.35, 0.0, 1.0);
-    // slow rotation from drift, pulse from rhythm, jitter from tension, outward pop from burst
-    float rot = drift * t * 0.25;
-    float pulse = 1.0 + 0.06 * rhy * sin(t * (2.0 + 6.0*rhy) + r*6.0);
-    float jit = tens * 0.025 * (hash(rnd*7.1 + floor(t*30.0)) - 0.5);
-    float pop = (burst*0.18 + uFlash*0.25) * (0.4 + rnd);
-    float rr = r * pulse + pop * r + jit;
-    float aa = a + rot + flow * 0.15 * sin(t*0.7 + rnd*6.28);
-    vec3 p = vec3(cos(aa)*rr, sin(aa)*rr, position.z) * ${R.toFixed(2)};
-    // recovery pulls everything gently back to a calm disc
-    p.xy = mix(p.xy, vec2(cos(a), sin(a)) * r * ${R.toFixed(2)}, recov * 0.5 * (1.0 - uFrozen));
-    vLevel = level; vRnd = rnd;
-    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    float flow=uVal[0], burst=uVal[1], tens=uVal[2], rhy=uVal[3], drift=uVal[4], recov=uVal[5];
+    vec3 p = position;
+    // the field rolls under you: flow sets the wind speed, drift turns the wind
+    float ang = drift * 6.2831;
+    vec2 wind = vec2(cos(ang), sin(ang)) * uTime * (0.15 + 1.2*flow);
+    float h = fbm(p.xz*0.09 + wind*0.1);
+    // tension raises and sharpens the terrain, recovery flattens it
+    float amp = 0.6 + 4.5*tens*(1.0-0.6*recov);
+    p.y = (h-0.5)*2.0*amp;
+    // rhythm: a wave radiating from the player
+    float d = length(p.xz - uCam.xz);
+    p.y += 0.35*rhy*sin(d*0.9 - uTime*(2.0+6.0*rhy));
+    // burst: a shock that lifts everything near you for a moment
+    p.y += (burst*0.8 + uFlash*2.5) * exp(-d*0.06);
+    vLevel = clamp(h*1.2 + 0.05 + 0.4*flow, 0.0, 1.0);
+    vDist = d; vRnd = aRnd.x;
+    vec4 mv = modelViewMatrix * vec4(p,1.0);
     gl_Position = projectionMatrix * mv;
-    float size = (0.9 + 2.6 * level) * uPix * (1.0 + 0.4*uFlash);
-    gl_PointSize = size * (3.0 / -mv.z);
+    gl_PointSize = (1.2 + 2.0*vLevel + 1.5*uFlash) * uPix * (8.0 / max(-mv.z, 0.8));
   }
 `;
-const frag = `
+const pointFrag = `
   precision highp float;
-  uniform vec3 uInk;
-  uniform float uAlpha;
-  varying float vLevel;
-  varying float vRnd;
+  uniform vec3 uInk; uniform vec3 uBg; uniform float uFog;
+  varying float vLevel; varying float vDist; varying float vRnd;
   void main(){
-    vec2 c = gl_PointCoord - 0.5;
-    float d = length(c);
-    // glyph-like mark: a dot for low level, a cross for high
-    float dot = smoothstep(0.5, 0.42, d);
-    float cross = (1.0 - smoothstep(0.08, 0.12, abs(c.x))) + (1.0 - smoothstep(0.08, 0.12, abs(c.y)));
-    float mark = mix(dot, clamp(cross,0.0,1.0), step(0.62, vLevel));
-    // sparse points only appear when the level clears the point's own threshold
-    float show = step(vRnd * 0.9, vLevel);
-    float a = mark * show * uAlpha * (0.35 + 0.65*vLevel);
+    vec2 c = gl_PointCoord - 0.5; float r = length(c);
+    float dot = smoothstep(0.5, 0.35, r);
+    float cross = clamp((1.0-smoothstep(0.09,0.14,abs(c.x))) + (1.0-smoothstep(0.09,0.14,abs(c.y))), 0.0, 1.0);
+    float mark = mix(dot, cross, step(0.65, vLevel));
+    float show = step(vRnd*0.85, vLevel);
+    float fog = exp(-vDist/uFog);
+    float a = mark * show * fog * (0.25 + 0.75*vLevel);
     if (a < 0.02) discard;
-    gl_FragColor = vec4(uInk, a);
+    gl_FragColor = vec4(mix(uBg, uInk, a), 1.0);
   }
 `;
+const ground = new THREE.Points(makeGround(), new THREE.ShaderMaterial({
+  uniforms: U, vertexShader: groundVert, fragmentShader: pointFrag,
+  transparent: false, depthWrite: true, depthTest: true, blending: THREE.NormalBlending,
+}));
+scene.add(ground);
 
-function makeMaterial(frozen){
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      uVal: { value: new Float32Array(6) },
-      uTime: { value: 0 },
-      uFlash: { value: 0 },
-      uFrozen: { value: frozen ? 1 : 0 },
-      uPix: { value: renderer.getPixelRatio() },
-      uInk: { value: new THREE.Color(0x1d1d1b) },
-      uAlpha: { value: frozen ? 0.35 : 0.9 },
-    },
-    vertexShader: vert, fragmentShader: frag,
-    transparent: true, depthWrite: false, depthTest: false,
-    blending: THREE.NormalBlending,
-  });
-}
-
-const liveGeo = makeField(N, 1234);
-const liveMat = makeMaterial(false);
-const live = new THREE.Points(liveGeo, liveMat);
-scene.add(live);
-
-// captured layers
-const layers = [];
-function capture(){
-  const m = makeMaterial(true);
-  for (let i=0;i<6;i++) m.uniforms.uVal.value[i] = v[i];
-  m.uniforms.uTime.value = liveMat.uniforms.uTime.value;
-  m.uniforms.uInk.value.copy(liveMat.uniforms.uInk.value);
-  const p = new THREE.Points(liveGeo, m);
-  p.position.z = -0.12 * (layers.length + 1);
-  p.rotation.z = (layers.length + 1) * 0.07;
-  scene.add(p); layers.push(p);
-  if (layers.length > 8){ const old = layers.shift(); scene.remove(old); old.material.dispose(); }
-  pulseFlash(0.6);
-}
-function release(){
-  for (const p of layers){ scene.remove(p); p.material.dispose(); }
-  layers.length = 0;
-}
-function pulseFlash(x){ burstFlash = Math.max(burstFlash, x); }
-
-// ---------- wedge labels (sprites) ----------
-function label(text, angle){
-  const c = document.createElement("canvas"); c.width = 256; c.height = 64;
-  const x = c.getContext("2d");
-  x.font = "28px Courier New"; x.textAlign = "center"; x.textBaseline = "middle";
-  x.fillStyle = dark ? "#d8d8d4" : "#1d1d1b"; x.fillText(text, 128, 32);
-  const tex = new THREE.CanvasTexture(c);
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-  s.scale.set(0.42, 0.105, 1);
-  s.position.set(Math.cos(angle)*R*1.14, Math.sin(angle)*R*1.14, 0.05);
-  return s;
-}
-let labels = [];
-function buildLabels(){
-  for (const l of labels) scene.remove(l);
-  labels = [];
-  for (let i=0;i<6;i++){
-    const a = -Math.PI/2 + i*Math.PI/3 + Math.PI/6 + Math.PI/2; // match the puck's wedge order
-    labels.push(label(LABEL[i], a));
+// ---------- captured columns: frozen signatures that keep playing ----------
+const COLN = 9000;
+function makeColumnGeo(){
+  const pos = new Float32Array(COLN*3), rnd = new Float32Array(COLN*2);
+  for (let i=0;i<COLN;i++){
+    const a = Math.random()*Math.PI*2, r = Math.pow(Math.random(), 0.6);
+    const y = Math.random();
+    pos[i*3] = Math.cos(a)*r; pos[i*3+1] = y; pos[i*3+2] = Math.sin(a)*r;
+    rnd[i*2] = Math.random(); rnd[i*2+1] = a;
   }
-  for (const l of labels) scene.add(l);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute("aRnd", new THREE.Float32BufferAttribute(rnd,2));
+  return g;
 }
-buildLabels();
+const columnGeo = makeColumnGeo();
+const columnVert = `
+  attribute vec2 aRnd;
+  uniform float uVal[6]; uniform float uTime; uniform float uFlash; uniform vec3 uCam; uniform float uPix;
+  uniform float uBorn; uniform float uBeat;
+  varying float vLevel; varying float vDist; varying float vRnd;
+  void main(){
+    float flow=uVal[0], burst=uVal[1], tens=uVal[2], rhy=uVal[3], drift=uVal[4], recov=uVal[5];
+    float age = clamp((uTime - uBorn)*1.2, 0.0, 1.0);          // rises over ~1 s
+    float height = 2.0 + 9.0*burst + 4.0*flow;
+    float radius = 0.4 + 1.6*tens;
+    vec3 p = position;
+    float y = p.y * height * age;
+    float a = aRnd.y + drift*uTime*0.6;
+    float r = radius * length(p.xz) * (1.0 + 0.15*uBeat*sin(p.y*12.0));
+    // recovery lets the column lean and settle; low recovery keeps it rigid
+    float lean = (1.0-recov)*0.0 + recov*0.25*sin(uTime*0.5 + aRnd.x);
+    vec3 w = vec3(cos(a)*r + lean*y*0.2, y, sin(a)*r);
+    vec4 world = modelMatrix * vec4(w,1.0);
+    vLevel = clamp(0.35 + 0.65*(1.0 - p.y) * (0.5+0.5*rhy) + 0.4*uBeat, 0.0, 1.0);
+    vDist = length(world.xz - uCam.xz); vRnd = aRnd.x;
+    vec4 mv = viewMatrix * world;
+    gl_Position = projectionMatrix * mv;
+    gl_PointSize = (1.4 + 1.8*vLevel + 2.0*uBeat) * uPix * (8.0 / max(-mv.z, 0.8));
+  }
+`;
+const columns = [];
+function makeColumn(x, z, vals){
+  const u = {
+    uVal: { value: new Float32Array(vals) }, uTime: U.uTime, uFlash: U.uFlash, uInk: U.uInk, uBg: U.uBg, uCam: U.uCam, uPix: U.uPix, uFog: U.uFog,
+    uBorn: { value: U.uTime.value }, uBeat: { value: 0 },
+  };
+  const m = new THREE.ShaderMaterial({ uniforms: u, vertexShader: columnVert, fragmentShader: pointFrag, depthWrite: true, depthTest: true });
+  const p = new THREE.Points(columnGeo, m);
+  p.position.set(x, 0, z);
+  scene.add(p);
+  const col = { mesh: p, vals: vals.slice(), period: 0.25 + (1.0 - vals[3]) * 1.6, next: audio.now() + 0.1, beat: 0 };
+  columns.push(col);
+  if (columns.length > 24){ const old = columns.shift(); scene.remove(old.mesh); old.mesh.material.dispose(); }
+  return col;
+}
+function release(){ for (const c of columns){ scene.remove(c.mesh); c.mesh.material.dispose(); } columns.length = 0; }
 
-// ---------- HUD ----------
-const hud = document.getElementById("hud");
-function bar(x){ const n = Math.round(x*16); return "#".repeat(n) + "-".repeat(16-n); }
-function drawHUD(){
-  hud.innerHTML = QUAL.map((q,i)=>`<div class="row"><span class="name">${q}</span><span class="bar">${bar(v[i])}  ${v[i].toFixed(2)}</span></div>`).join("")
-    + `<div class="row"><span class="name">layers</span><span class="bar">${layers.length}</span></div>`;
+// ---------- sound: each column is a step in a loop ----------
+const audio = {
+  ctx: null, master: null,
+  start(){ if (this.ctx) return; this.ctx = new (window.AudioContext||window.webkitAudioContext)(); this.master = this.ctx.createGain(); this.master.gain.value = 0.25; this.master.connect(this.ctx.destination); },
+  now(){ return this.ctx ? this.ctx.currentTime : 0; },
+  ping(vals, when){
+    if (!this.ctx) return;
+    const scale = [0,2,4,7,9,12,14,16];                       // major pentatonic, two octaves
+    const idx = Math.min(scale.length-1, Math.floor(vals[0]*scale.length));
+    const base = 110 * Math.pow(2, (vals[4]*12)/12);          // drift shifts the root up to an octave
+    const f = base * Math.pow(2, scale[idx]/12);
+    const o = this.ctx.createOscillator(); o.type = vals[1] > 0.5 ? "square" : "triangle"; o.frequency.value = f;
+    const lp = this.ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 300 + 4000*(1.0 - vals[2]); lp.Q.value = 2 + 8*vals[2];
+    const g = this.ctx.createGain();
+    const dec = 0.08 + 0.9*vals[5];
+    g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(0.5, when+0.01); g.gain.exponentialRampToValueAtTime(0.0001, when+dec);
+    o.connect(lp); lp.connect(g); g.connect(this.master);
+    o.start(when); o.stop(when+dec+0.05);
+  }
+};
+
+// ---------- player ----------
+const player = { pos: new THREE.Vector3(0, 1.6, 8), yaw: 0, pitch: 0, keys: {} };
+let locked = false;
+const enter = document.getElementById("enter"), cross = document.getElementById("cross");
+function lock(){ canvas.requestPointerLock && canvas.requestPointerLock(); }
+enter.addEventListener("click", () => { audio.start(); lock(); });
+document.addEventListener("pointerlockchange", () => {
+  locked = document.pointerLockElement === canvas;
+  enter.classList.toggle("hidden", locked); cross.classList.toggle("hidden", !locked);
+});
+document.addEventListener("mousemove", (e) => {
+  if (!locked) return;
+  player.yaw -= e.movementX * 0.0022; player.pitch -= e.movementY * 0.0022;
+  player.pitch = Math.max(-1.3, Math.min(1.3, player.pitch));
+});
+addEventListener("keydown", (e) => { player.keys[e.code] = true; onKey(e); });
+addEventListener("keyup", (e) => { player.keys[e.code] = false; });
+canvas.addEventListener("mousedown", (e) => { if (!locked) return; if (e.button === 0) captureAhead(); });
+
+function captureAhead(){
+  // where the crosshair meets the ground plane (y = 0), or 6 m ahead if looking up
+  const dir = new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(player.pitch, player.yaw, 0, "YXZ"));
+  let t = dir.y < -0.02 ? -player.pos.y / dir.y : 6.0;
+  t = Math.min(t, 40);
+  const hit = player.pos.clone().add(dir.multiplyScalar(t));
+  makeColumn(hit.x, hit.z, v);
+  burstFlash = Math.max(burstFlash, 0.8);
+}
+
+function onKey(e){
+  const k = e.key.toLowerCase();
+  if (k === "r") release();
+  else if (k === "b") { light = !light; document.body.classList.toggle("light", light);
+    U.uInk.value.set(light ? 0x1d1d1b : 0xe6e6e2); U.uBg.value.set(light ? 0xf4f4f1 : 0x070707); }
+  else if (k === "s") { if (ws && ws.readyState === 1) { sim = !sim; status(); } }
+  else if (k === "h") { hideUI = !hideUI; for (const id of ["hud","help","title","status"]) document.getElementById(id).classList.toggle("hidden", hideUI); }
+  else if (k === "c") captureAhead();
 }
 
 // ---------- input: WebSocket or sim ----------
 const statusEl = document.getElementById("status");
+function status(){ statusEl.textContent = sim ? (ws && ws.readyState===1 ? "SIM (device connected, press S)" : "SIM") : "LIVE"; }
 function connect(){
   try {
     ws = new WebSocket("ws://127.0.0.1:8765");
-    ws.onopen = () => { sim = false; statusEl.textContent = "LIVE"; };
-    ws.onclose = () => { ws = null; if (!sim){ sim = true; statusEl.textContent = "SIM (no device)"; } setTimeout(connect, 2000); };
+    ws.onopen = () => { sim = false; status(); };
+    ws.onclose = () => { ws = null; sim = true; status(); setTimeout(connect, 2000); };
     ws.onerror = () => {};
     ws.onmessage = (e) => {
       try {
         const d = JSON.parse(e.data);
-        if (d.event === "capture") { capture(); return; }
+        if (d.event === "capture") { captureAhead(); return; }
         if (d.event === "release") { release(); return; }
+        if (sim) return;
         for (let i=0;i<6;i++) if (typeof d[QUAL[i]] === "number") target[i] = Math.min(1, Math.max(0, d[QUAL[i]]));
       } catch(_){}
     };
   } catch(_){ setTimeout(connect, 2000); }
 }
-connect();
+connect(); status();
 
-let simT0 = performance.now()/1000, burstUntil = 0;
+let burstUntil = 0;
 function simulate(t){
-  const flow = 0.5 + 0.4*Math.sin(t*0.7);
+  target[0] = 0.5 + 0.4*Math.sin(t*0.7);
   if (Math.random() < 0.006) burstUntil = t + 0.35;
-  const burst = t < burstUntil ? 1.0 : Math.max(0, 0.2*Math.sin(t*5));
-  const tension = 0.3 + 0.3*Math.sin(t*1.9 + 1);
-  const rhythm = 0.5 + 0.5*Math.sin(t*2.4);
-  const drift = (t*0.03) % 1.0;
-  const recovery = t >= burstUntil ? Math.max(0, 1 - (t-burstUntil)*0.8) : 0;
-  target[0]=flow; target[1]=burst; target[2]=tension; target[3]=rhythm; target[4]=drift; target[5]=recovery;
+  target[1] = t < burstUntil ? 1.0 : Math.max(0, 0.2*Math.sin(t*5));
+  target[2] = 0.3 + 0.3*Math.sin(t*1.9 + 1);
+  target[3] = 0.5 + 0.5*Math.sin(t*2.4);
+  target[4] = (t*0.03) % 1.0;
+  target[5] = t >= burstUntil ? Math.max(0, 1 - (t-burstUntil)*0.8) : 0;
 }
 
-// ---------- keys ----------
-addEventListener("keydown", (e) => {
-  const k = e.key.toLowerCase();
-  if (k === "c") capture();
-  else if (k === "r") release();
-  else if (k === "b") { dark = !dark; document.body.classList.toggle("dark", dark);
-    const ink = new THREE.Color(dark ? 0xe8e8e4 : 0x1d1d1b);
-    liveMat.uniforms.uInk.value.copy(ink); for (const p of layers) p.material.uniforms.uInk.value.copy(ink); buildLabels(); }
-  else if (k === "s") { sim = !sim; statusEl.textContent = sim ? "SIM" : (ws && ws.readyState===1 ? "LIVE" : "SIM (no device)"); if (!sim && !(ws && ws.readyState===1)) sim = true; }
-  else if (k === "f") { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
-  else if (k === "h") { hideUI = !hideUI; for (const id of ["hud","help","title","status"]) document.getElementById(id).style.display = hideUI ? "none" : ""; }
-});
+// ---------- HUD ----------
+const hud = document.getElementById("hud");
+function bar(x){ const n = Math.round(x*16); return "#".repeat(n) + "-".repeat(16-n); }
+function drawHUD(){
+  hud.innerHTML = QUAL.map((q,i)=>`<div class="row"><span class="name">${q}</span><span class="bar">${bar(v[i])} ${v[i].toFixed(2)}</span></div>`).join("")
+    + `<div class="row"><span class="name">captured</span><span class="bar">${columns.length}</span></div>`;
+}
 
 // ---------- loop ----------
-const A = [0.15, 0.5, 0.12, 0.10, 0.08, 0.12];   // same smoothing rates as the firmware
-let last = performance.now();
-let prevBurst = 0;
+let lastT = performance.now(), lastHud = 0;
 function frame(now){
-  const t = now/1000;
-  if (sim) simulate(t - simT0);
+  const t = now/1000, dt = Math.min(0.05, (now-lastT)/1000); lastT = now;
+  if (sim) simulate(t);
   for (let i=0;i<6;i++) v[i] += (target[i]-v[i]) * A[i];
-  if (v[1] > 0.6 && prevBurst <= 0.6) pulseFlash(1.0);
-  prevBurst = v[1];
-  burstFlash *= 0.9;
-  for (let i=0;i<6;i++) liveMat.uniforms.uVal.value[i] = v[i];
-  liveMat.uniforms.uTime.value = t;
-  liveMat.uniforms.uFlash.value = burstFlash;
-  live.rotation.z = -Math.PI/2;      // FLOW at the top, like the puck
-  for (const p of layers) p.rotation.z += 0.0004;
-  renderer.setClearColor(dark ? 0x070707 : 0xf4f4f1, 1);
+  if (v[1] > 0.6 && prevBurst <= 0.6) burstFlash = 1.0;
+  prevBurst = v[1]; burstFlash *= 0.9;
+
+  // move
+  const sp = (player.keys["ShiftLeft"] ? 9 : 4.5) * dt;
+  const fwd = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+  const right = new THREE.Vector3(fwd.z, 0, -fwd.x);
+  if (player.keys["KeyW"]) player.pos.addScaledVector(fwd, sp);
+  if (player.keys["KeyS"]) player.pos.addScaledVector(fwd, -sp);
+  if (player.keys["KeyA"]) player.pos.addScaledVector(right, -sp);
+  if (player.keys["KeyD"]) player.pos.addScaledVector(right, sp);
+  const lim = GW*GS/2 - 4; player.pos.x = Math.max(-lim, Math.min(lim, player.pos.x)); player.pos.z = Math.max(-lim, Math.min(lim, player.pos.z));
+  cam.position.copy(player.pos);
+  cam.rotation.set(player.pitch, player.yaw, 0, "YXZ");
+
+  // uniforms
+  for (let i=0;i<6;i++) U.uVal.value[i] = v[i];
+  U.uTime.value = t; U.uFlash.value = burstFlash; U.uCam.value.copy(player.pos);
+
+  // columns: beat on their own rhythm, play a tone
+  const an = audio.now();
+  for (const c of columns){
+    if (audio.ctx && an >= c.next){ audio.ping(c.vals, c.next); c.next += c.period; c.beat = 1.0; }
+    c.beat *= 0.86; c.mesh.material.uniforms.uBeat.value = c.beat;
+  }
+
+  renderer.setClearColor(U.uBg.value, 1);
   renderer.render(scene, cam);
-  if ((now - last) > 100){ drawHUD(); last = now; }
+  if (now - lastHud > 100){ drawHUD(); lastHud = now; }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
