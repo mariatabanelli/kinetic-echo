@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="300" viewBox="0 0 900 300" font-family="Helvetica, Arial, sans-serif">
+  <rect width="900" height="300" fill="#ffffff"/>
+  <g stroke="#111" stroke-width="1.5" fill="none">
+    <rect x="30" y="80" width="200" height="120" rx="4"/>
+    <rect x="350" y="80" width="200" height="120" rx="4"/>
+    <rect x="670" y="40" width="200" height="90" rx="4"/>
+    <rect x="670" y="170" width="200" height="90" rx="4"/>
+  </g>
+  <g fill="#111" font-size="14" font-weight="bold" text-anchor="middle">
+    <text x="130" y="108">KE-01 SLEEVE PUCK</text>
+    <text x="450" y="108">PYTHON BRIDGE</text>
+    <text x="770" y="68">ABLETON LIVE</text>
+    <text x="770" y="198">TOUCHDESIGNER</text>
+  </g>
+  <g fill="#333" font-size="12" text-anchor="middle">
+    <text x="130" y="132">RP2350-Zero + MPU6050</text>
+    <text x="130" y="150">computes six qualities</text>
+    <text x="130" y="168">display, tone, vibration</text>
+    <text x="130" y="186">records sessions to flash</text>
+    <text x="450" y="132">parses CSV over USB serial</text>
+    <text x="450" y="150">maps to MIDI CC 20 to 25</text>
+    <text x="450" y="168">sends OSC /ke/flow ... /ke/recovery</text>
+    <text x="450" y="186">replays recorded sessions</text>
+    <text x="770" y="92">6 control changes</text>
+    <text x="770" y="110">+ burst note</text>
+    <text x="770" y="222">live character field</text>
+    <text x="770" y="240">and sound-reactive visual</text>
+  </g>
+  <g stroke="#111" stroke-width="1.5" fill="none" marker-end="url(#a)">
+    <line x1="230" y1="140" x2="345" y2="140"/>
+    <line x1="550" y1="120" x2="665" y2="85"/>
+    <line x1="550" y1="160" x2="665" y2="215"/>
+  </g>
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#111"/>
+    </marker>
+  </defs>
+  <g fill="#555" font-size="11" text-anchor="middle">
+    <text x="288" y="130">USB serial 115200</text>
+    <text x="608" y="92">virtual MIDI</text>
+    <text x="608" y="205">OSC / UDP</text>
+  </g>
+  <text x="450" y="280" fill="#111" font-size="12" text-anchor="middle">flow · burst · tension · rhythm · drift · recovery: the same six values light the screen, shape the sound and drive the visual</text>
+</svg>

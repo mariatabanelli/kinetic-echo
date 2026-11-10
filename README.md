@@ -4,7 +4,9 @@ A sleeve-worn movement instrument. An IMU on the forearm reads six qualities of 
 
 **Status (Nov 2026):** working prototype on breadboard (display, IMU, vibration, sound). Moving from Raspberry Pi Pico 2 W to a Waveshare RP2350-Zero inside a 3D-printed puck that seats in a sewn sleeve bezel. First carrier PCB was fabricated but not populated; a round carrier is being redesigned.
 
-![Breadboard prototype](docs/images/breadboard.jpg)
+![System diagram](docs/images/system.svg)
+
+_Breadboard photo to follow._
 
 ## How it works
 
@@ -37,7 +39,7 @@ firmware/kinetic_echo/   Arduino sketch for the RP2350
 bridge/                  Python: serial -> MIDI / OSC (device_to_ableton.py)
 calibration/             scripts that derive the six movement qualities from raw IMU data
 hardware/carrier-pcb/    EasyEDA / Gerber files for the carrier board
-enclosure/               CAD for the puck and sleeve bezel
+enclosure/               puck.scad, parametric OpenSCAD puck shell and lid
 docs/                    pin map, build notes, images
 ```
 
