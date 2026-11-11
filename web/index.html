@@ -64,10 +64,11 @@ const MAXF = 320, MAXL = 24, MAXRIP = 8, STEPS = 16, WORLD = 96;
 let sim = true, ws = null, hideUI = false, burstFlash = 0, prevBurst = 0, palette = 0;
 
 const PALETTES = [
-  { name:"ash",   bg:0x040405, ink:0xd9dbd6, hot:0xffffff, cool:0x8fa0c0 },
-  { name:"moss",  bg:0x020402, ink:0x9fe39a, hot:0xf2ffd8, cool:0x3f7a6a },
-  { name:"ember", bg:0x060302, ink:0xf0a070, hot:0xfff2d6, cool:0x7a3a5a },
-  { name:"paper", bg:0xf2f2ee, ink:0x1d1d1b, hot:0x000000, cool:0x5a5a70 },
+  { name:"dusk",  bg:0x050406, ink:0xb07a5e, hot:0xffe0b0, cool:0x4a4a70, bloom:0.7 },
+  { name:"ash",   bg:0x040405, ink:0x9a9c98, hot:0xffffff, cool:0x5a6680, bloom:0.6 },
+  { name:"moss",  bg:0x020402, ink:0x5f9a5a, hot:0xf2ffd8, cool:0x2f5a4a, bloom:0.55 },
+  { name:"ember", bg:0x060302, ink:0xb06a40, hot:0xfff2d6, cool:0x5a2a4a, bloom:0.6 },
+  { name:"paper", bg:0xf2f2ee, ink:0x2d2d2b, hot:0x000000, cool:0x6a6a80, bloom:0.2 },
 ];
 const TYPES = ["reed","stone","ring","arc","thread","bloom","pillar","fold"];
 
@@ -150,7 +151,7 @@ const U = {
   uCam:   { value: new THREE.Vector3() },
   uAim:   { value: new THREE.Vector3(0,0,-6) },
   uPix:   { value: renderer.getPixelRatio() },
-  uFog:   { value: 80.0 },
+  uFog:   { value: 62.0 },
   uLights:{ value: Array.from({length:MAXL}, () => new THREE.Vector4(0,0,0,0)) },
   uRipples:{ value: Array.from({length:MAXRIP}, () => new THREE.Vector4(0,0,-99,0)) },
   uForms: { value: stateTex },
@@ -181,7 +182,7 @@ const lightGLSL = `
     l += 0.3 * exp(-da*da*0.3);
     // your own aura: the ground wakes around your feet, wider when you flow
     float dc = length(xz - uCam.xz);
-    l += (0.12 + 0.35*uVal[0]) * exp(-dc*dc*0.12);
+    l += (0.08 + 0.25*uVal[0]) * exp(-dc*dc*0.12);
     return l;
   }
 `;
@@ -198,14 +199,14 @@ const pointFrag = `
     vec2 c = gl_PointCoord - 0.5; float r = length(c);
     float dot = smoothstep(0.5, 0.35, r);
     float cross = clamp((1.0-smoothstep(0.09,0.14,abs(c.x))) + (1.0-smoothstep(0.09,0.14,abs(c.y))), 0.0, 1.0);
-    float mark = mix(dot, cross, step(0.65, vLevel));
+    float mark = mix(dot, cross, step(0.9, vLevel));
     float show = step(vRnd*0.85, vLevel);
     float fog = exp(-vDist/uFog);
-    float a = mark * show * fog * (0.25 + 0.75*vLevel);
+    float a = mark * show * fog * (0.22 + 0.75*vLevel);
     if (a < 0.02) discard;
-    vec3 ink = mix(uInk, uCool, clamp(vDist/90.0, 0.0, 0.7));
+    vec3 ink = mix(uInk, uCool, clamp(vDist/60.0, 0.0, 0.75));
     vec3 col = mix(ink, uHot, clamp(vLit*0.8, 0.0, 1.0));
-    gl_FragColor = vec4(col * a * (1.0 + 0.8*vLit), a);
+    gl_FragColor = vec4(col * a * (1.0 + 1.0*vLit), a);
   }
 `;
 const softFrag = `
@@ -248,19 +249,20 @@ const groundVert = `${HEAD} ${noiseGLSL} ${lightGLSL}
     vec2 wind = vec2(cos(ang), sin(ang)) * uTime * (0.15 + 1.2*flow);
     float h = fbm(p.xz*0.09 + wind*0.1);
     float amp = 0.5 + 3.5*tens*(1.0-0.6*recov);
-    p.y = (h-0.5)*2.0*amp;
     float d = length(p.xz - uCam.xz);
-    p.y += 0.3*rhy*sin(d*0.9 - uTime*(2.0+6.0*rhy));
-    p.y += (burst*0.8 + uFlash*2.0) * exp(-d*0.06);
+    float calm = smoothstep(2.0, 12.0, d);            // the floor stays still under your feet
+    p.y = (h-0.5)*2.0*amp*calm;
+    p.y += 0.12*rhy*sin(d*0.9 - uTime*(2.0+6.0*rhy)) * calm;
+    p.y += (burst*0.5 + uFlash*1.2) * exp(-d*0.06) * calm;
     float dc = length(p.xz);
-    float stepWave = exp(-pow(dc - uStep*70.0, 2.0)*0.02) * 0.35;
+    float stepWave = exp(-pow(dc - uStep*70.0, 2.0)*0.02) * 0.3;
     float lit = lightAt(p.xz, uTime) + stepWave;
-    p.y += lit * 0.8;
-    vLevel = clamp(h*1.2 + 0.08 + 0.4*flow + lit*0.6, 0.0, 1.0);
+    p.y += lit * 0.25 * calm;
+    vLevel = clamp(h*1.0 + 0.0 + 0.3*flow + lit*0.9, 0.0, 1.0);
     vDist = d; vRnd = aRnd.x; vLit = lit;
     vec4 mv = modelViewMatrix * vec4(p,1.0);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = (1.2 + 2.0*vLevel + 1.5*uFlash + 2.0*lit) * uPix * (8.0 / max(-mv.z, 1.6));
+    gl_PointSize = (1.0 + 1.4*vLevel + 1.0*uFlash + 1.2*lit) * uPix * (6.10 / max(-mv.z, 2.2));
   }`;
 scene.add(new THREE.Points(geo(GW*GW, (i,pos,loc,fid,r2) => {
   const gx = i % GW, gz = Math.floor(i/GW);
@@ -281,11 +283,11 @@ const underVert = `${HEAD} ${lightGLSL}
     p.y += u*hgt;
     p.xz += vec2(cos(ang), sin(ang)) * wind * u*u * 0.6;
     float lit = lightAt(p.xz, uTime);
-    vLevel = clamp(0.35 + 0.5*u + lit*0.8, 0.0, 1.0);
+    vLevel = clamp(0.22 + 0.4*u + lit*1.0, 0.0, 1.0);
     vDist = length(p.xz - uCam.xz); vRnd = aRnd.x; vLit = lit*1.2;
     vec4 mv = modelViewMatrix * vec4(p,1.0);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = (0.9 + 1.0*u + 2.0*lit) * uPix * (7.0 / max(-mv.z, 1.6));
+    gl_PointSize = (0.8 + 0.8*u + 1.0*lit) * uPix * (5.62 / max(-mv.z, 2.2));
   }`;
 scene.add(new THREE.Points(geo(UG, (i,pos,loc,fid,r2) => {
   let x, z;
@@ -309,7 +311,7 @@ const mistVert = `${HEAD} ${lightGLSL}
     vLevel = (0.05 + 0.1*recov) * (0.5 + lit); vRnd = 0.0; vDist = length(p.xz - uCam.xz); vLit = lit*0.6;
     vec4 mv = modelViewMatrix * vec4(p,1.0);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = (40.0 + 30.0*aRnd.y) * uPix * (8.0 / max(-mv.z, 1.6));
+    gl_PointSize = (40.0 + 30.0*aRnd.y) * uPix * (7.50 / max(-mv.z, 2.2));
   }`;
 scene.add(new THREE.Points(geo(2500, (i,pos,loc,fid,r2) => {
   pos[i*3] = (Math.random()-0.5)*WORLD; pos[i*3+1] = 0.2 + Math.random()*1.4; pos[i*3+2] = (Math.random()-0.5)*WORLD;
@@ -350,7 +352,7 @@ const airVert = `${HEAD} ${lightGLSL}
     vLevel = 0.9; vRnd = 0.0; vDist = length(p.xz - uCam.xz);
     vec4 mv = modelViewMatrix * vec4(p,1.0);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = (1.0 + 1.6*blink + 2.0*burst) * uPix * (7.0 / max(-mv.z, 1.6));
+    gl_PointSize = (1.0 + 1.6*blink + 2.0*burst) * uPix * (6.56 / max(-mv.z, 2.2));
   }`;
 scene.add(new THREE.Points(geo(7000, (i,pos,loc,fid,r2) => {
   pos[i*3] = (Math.random()-0.5)*WORLD; pos[i*3+1] = 0.3 + Math.random()*10.0; pos[i*3+2] = (Math.random()-0.5)*WORLD;
@@ -372,11 +374,11 @@ function formVert(body){
     ${body}
     vec3 world = vec3(F.x, 0.0, F.y) + p;
     float lit = lightAt(world.xz, uTime) + glow + awake*(0.3 + 1.4*beat) + litIn*0.5;
-    vLevel = clamp(level + 0.3*awake + 0.5*beat + 0.2*litIn, 0.0, 1.0);
+    vLevel = clamp(level*0.85 + 0.35*awake + 0.5*beat + 0.25*litIn, 0.0, 1.0);
     vDist = length(world.xz - uCam.xz); vRnd = aRnd.x; vLit = lit;
     vec4 mv = viewMatrix * vec4(world, 1.0);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = (1.2 + 1.8*vLevel + 2.5*beat + 1.5*litIn) * uPix * (8.0 / max(-mv.z, 1.6));
+    gl_PointSize = (1.2 + 1.8*vLevel + 2.5*beat + 1.5*litIn) * uPix * (7.50 / max(-mv.z, 2.2));
   }`;
 }
 const reedBody = `
@@ -485,9 +487,9 @@ const foldBody = `
     float hgt = w*h*(1.0 + 0.2*awake*beat);
     p = vec3(ax.x*along - ax.y*wave, hgt + 0.05*q, ax.y*along + ax.x*wave);
     float pour = 0.5 + 0.5*sin(u*12.0 - uTime*(2.0+6.0*fRhy));
-    level = 0.5 + 0.3*w; glow = awake*(0.3 + 0.8*pour*beat);`;
+    level = 0.35 + 0.25*w; glow = awake*(0.15 + 0.5*pour*beat);`;
 const BODIES = [reedBody, stoneBody, ringBody, arcBody, threadBody, bloomBody, pillarBody, foldBody];
-const PER_TYPE = [800, 1600, 1200, 2000, 1100, 1400, 1600, 2200];
+const PER_TYPE = [800, 1600, 1200, 2000, 1100, 1400, 1600, 1300];
 for (let type=0; type<8; type++){
   const idx = forms.map((f,i)=>f.type===type && i<MAXF ? i : -1).filter(i=>i>=0);
   const per = PER_TYPE[type], n = idx.length*per;
@@ -513,7 +515,7 @@ const sparkVert = `${HEAD} ${lightGLSL} ${stateGLSL}
     vLevel = awake * fade * (0.6 + 0.6*beat); vRnd = 0.0; vDist = length(p.xz - uCam.xz); vLit = 0.8 + beat;
     vec4 mv = modelViewMatrix * vec4(p,1.0);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = (1.2 + 2.0*beat) * uPix * (7.0 / max(-mv.z, 1.6)) * awake;
+    gl_PointSize = (1.2 + 2.0*beat) * uPix * (6.56 / max(-mv.z, 2.2)) * awake;
   }`;
 scene.add((() => { const n = 24000; const pts = new THREE.Points(geo(n, (i,pos,loc,fid,r2) => {
   fid[i] = Math.floor(Math.random()*NF); loc[i*3] = Math.random(); r2[i*2] = Math.random(); r2[i*2+1] = Math.random();
@@ -532,7 +534,7 @@ const trailVert = `attribute float aBorn; uniform float uTime; uniform float uPi
     vLevel = life*0.9; vRnd = 0.0; vDist = length(p.xz - uCam.xz); vLit = life*0.8;
     vec4 mv = modelViewMatrix * vec4(p,1.0);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = (1.0 + 1.5*life) * uPix * (7.0 / max(-mv.z, 1.6)) * step(0.001, life);
+    gl_PointSize = (1.0 + 1.5*life) * uPix * (6.56 / max(-mv.z, 2.2)) * step(0.001, life);
   }`;
 const trail = new THREE.Points(trailGeo, pointsMat(trailVert)); trail.frustumCulled = false; scene.add(trail);
 let lastTrail = 0;
@@ -550,8 +552,8 @@ function dropTrail(t){
   const vert = `${HEAD}
     void main(){
       float flow=uVal[0], burst=uVal[1], tens=uVal[2], rhy=uVal[3], drift=uVal[4], recov=uVal[5];
-      float height = 16.0 + 22.0*burst + 8.0*flow;
-      float radius = 0.5 + 2.2*tens;
+      float height = 30.0 + 30.0*burst + 10.0*flow;
+      float radius = 0.25 + 1.2*tens;
       vec3 p = position;
       float y = p.y*height;
       float a = aRnd.y + drift*uTime*1.2 + flow*p.y*5.0;
@@ -563,7 +565,7 @@ function dropTrail(t){
       vDist = length(w.xz - uCam.xz); vRnd = aRnd.x;
       vec4 mv = modelViewMatrix * vec4(w,1.0);
       gl_Position = projectionMatrix * mv;
-      gl_PointSize = (1.3 + 1.6*vLevel + 2.0*uFlash) * uPix * (8.0 / max(-mv.z, 1.6));
+      gl_PointSize = (1.3 + 1.6*vLevel + 2.0*uFlash) * uPix * (7.50 / max(-mv.z, 2.2));
     }`;
   const pts = new THREE.Points(geo(14000, (i,pos,loc,fid,r2) => { const a = Math.random()*Math.PI*2, r = Math.pow(Math.random(),0.5); pos[i*3]=Math.cos(a)*r; pos[i*3+1]=Math.random(); pos[i*3+2]=Math.sin(a)*r; r2[i*2]=Math.random(); r2[i*2+1]=a; }), pointsMat(vert));
   pts.frustumCulled = false; scene.add(pts);
@@ -725,8 +727,8 @@ function click(){ const f = pickForm(); if (!f) return; if (f.awake) sleep(f); e
 function setPalette(i){
   palette = i % PALETTES.length; const P = PALETTES[palette];
   U.uInk.value.set(P.ink); U.uHot.value.set(P.hot); U.uBg.value.set(P.bg); U.uCool.value.set(P.cool);
-  document.body.style.color = palette === 3 ? "#1d1d1b" : "#d8d8d4";
-  bloom.strength = palette === 3 ? 0.25 : 0.75;
+  document.body.style.color = P.name === "paper" ? "#1d1d1b" : "#c8c2b8";
+  bloom.strength = P.bloom;
 }
 function onKey(e){
   const k = e.key.toLowerCase();
