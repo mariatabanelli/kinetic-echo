@@ -47,27 +47,27 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 <script>
 // ------------------------------------------------------------------
-// Kinetic Echo · World  (v3)
+// Kinetic Echo · World  (v4)
 // A first-person world of glyph-points grown from code, driven by six
 // movement qualities: flow, burst, tension, rhythm, drift, recovery (0..1).
-// The world holds five kinds of form. Aim and click to wake one: it takes the
-// six values of that instant, lights the ground, and becomes a step in a loop.
-//   reed   plucked note       stone  low thud        ring   tick
-//   arc    sustained hum      thread bell
+// Five kinds of form stand in the world. Aim and click to wake one: it takes
+// the six values of that instant, lights the ground, sends sparks up, and
+// becomes a step in a loop.
+//   reed  pluck · stone  thud · ring  tick · arc  hum · thread  bell
 // Live: JSON over WebSocket from bridge/ke_osc_bridge.py --ws.  Sim: built in.
 // ------------------------------------------------------------------
 
 const QUAL = ["flow","burst","tension","rhythm","drift","recovery"];
 const v = [0.4,0.0,0.2,0.3,0.1,0.6], target = v.slice();
 const A = [0.15,0.5,0.12,0.10,0.08,0.12];
-const MAXF = 128, MAXL = 24, MAXRIP = 8, STEPS = 16;
+const MAXF = 256, MAXL = 24, MAXRIP = 8, STEPS = 16, WORLD = 160;
 let sim = true, ws = null, hideUI = false, burstFlash = 0, prevBurst = 0, palette = 0;
 
 const PALETTES = [
-  { name:"ash",   bg:0x050505, ink:0xe4e4df, hot:0xffffff },
-  { name:"moss",  bg:0x030503, ink:0x9fe39a, hot:0xeaffd0 },
-  { name:"ember", bg:0x060303, ink:0xf0a070, hot:0xfff0d0 },
-  { name:"paper", bg:0xf2f2ee, ink:0x1d1d1b, hot:0x000000 },
+  { name:"ash",   bg:0x040405, ink:0xd9dbd6, hot:0xffffff, cool:0x8fa0c0 },
+  { name:"moss",  bg:0x020402, ink:0x9fe39a, hot:0xf2ffd8, cool:0x3f7a6a },
+  { name:"ember", bg:0x060302, ink:0xf0a070, hot:0xfff2d6, cool:0x7a3a5a },
+  { name:"paper", bg:0xf2f2ee, ink:0x1d1d1b, hot:0x000000, cool:0x5a5a70 },
 ];
 const TYPES = ["reed","stone","ring","arc","thread"];
 
@@ -76,47 +76,58 @@ const canvas = document.getElementById("c");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, powerPreference:"high-performance" });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 const scene = new THREE.Scene();
-const cam = new THREE.PerspectiveCamera(70, 1, 0.05, 300);
+const cam = new THREE.PerspectiveCamera(70, 1, 0.05, 320);
 const composer = new THREE.EffectComposer(renderer);
 composer.addPass(new THREE.RenderPass(scene, cam));
-const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.9, 0.65, 0.18);
+const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.1, 0.75, 0.12);
 composer.addPass(bloom);
 function resize(){ renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth/innerHeight; cam.updateProjectionMatrix(); }
 addEventListener("resize", resize); resize();
 
 // ---------- the forms: grown from a seed ----------
-let seed = 7;
+let seed = 11;
 const rnd = () => { seed = (seed*1664525 + 1013904223) % 4294967296; return seed/4294967296; };
-const WORLD = 150;                 // world is WORLD x WORLD metres
-const forms = [];                  // { type, x, z, size, dir, seed, awake, vals, beat, born, step, every, lit }
+const forms = [];   // { type, x, z, size, dir, seed, awake, vals, beat, born, step, every, lit }
 function place(type, count, minR, maxR, cluster){
   for (let i=0;i<count;i++){
     let x, z;
-    if (cluster && forms.length && rnd() < 0.6){ const p = forms[Math.floor(rnd()*forms.length)]; x = p.x + (rnd()-0.5)*10; z = p.z + (rnd()-0.5)*10; }
+    const pool = forms.filter(f=>f.type===type);
+    if (cluster && pool.length && rnd() < 0.7){ const p = pool[Math.floor(rnd()*pool.length)]; x = p.x + (rnd()-0.5)*9; z = p.z + (rnd()-0.5)*9; }
     else { x = (rnd()-0.5)*WORLD; z = (rnd()-0.5)*WORLD; }
-    if (Math.hypot(x,z) < 7){ x += 9; }    // keep the centre clear for the beacon
+    if (Math.hypot(x,z) < 8){ x += 10; }
+    x = Math.max(-WORLD/2+3, Math.min(WORLD/2-3, x)); z = Math.max(-WORLD/2+3, Math.min(WORLD/2-3, z));
     forms.push({ type, x, z, size: minR + rnd()*(maxR-minR), dir: rnd()*Math.PI*2, seed: rnd()*6.28,
                  awake:false, vals:[0,0,0,0,0,0], beat:0, born:-99, step:0, every:16, lit:0 });
   }
 }
-place(0, 44, 1.8, 5.5, true);   // reeds, in groups
-place(1, 22, 0.8, 2.4, false);  // stones
-place(2, 14, 1.2, 3.2, false);  // rings on the ground
-place(3, 9,  2.5, 6.0, false);  // arcs
-place(4, 14, 5.0, 12.0, false); // threads in the air
-const NF = forms.length;
+place(0, 120, 1.6, 6.0, true);   // reeds, in groves
+place(1, 48,  0.7, 2.6, true);   // stones, in fields
+place(2, 24,  1.0, 3.4, false);  // rings
+place(3, 16,  2.5, 7.0, false);  // arcs
+place(4, 30,  5.0, 14.0, true);  // threads, in webs
+const NF = Math.min(forms.length, MAXF);
 
-// per-form state texture: row0 = awake, beat, age, lit  · row1 = flow,burst,tension,rhythm · row2 = drift,recovery,step phase,0
-const stateData = new Uint8Array(MAXF*3*4);
-const stateTex = new THREE.DataTexture(stateData, MAXF, 3, THREE.RGBAFormat, THREE.UnsignedByteType);
+// per-form state texture (bytes). rows:
+// 0: awake, beat, age, lit   1: flow, burst, tension, rhythm   2: drift, recovery, type, 0
+// 3: x hi, x lo, z hi, z lo  4: size, dir, seed, 0
+const ROWS = 5;
+const stateData = new Uint8Array(MAXF*ROWS*4);
+const stateTex = new THREE.DataTexture(stateData, MAXF, ROWS, THREE.RGBAFormat, THREE.UnsignedByteType);
 stateTex.magFilter = stateTex.minFilter = THREE.NearestFilter;
+function put16(o, val){ const q = Math.round(Math.max(0, Math.min(65535, (val + WORLD/2)/WORLD*65535))); stateData[o] = q >> 8; stateData[o+1] = q & 255; }
+forms.forEach((f,i) => {
+  if (i >= MAXF) return;
+  const o3 = (MAXF*3 + i)*4; put16(o3, f.x); put16(o3+2, f.z);
+  const o4 = (MAXF*4 + i)*4; stateData[o4] = Math.round(f.size/16*255); stateData[o4+1] = Math.round(f.dir/6.2832*255); stateData[o4+2] = Math.round(f.seed/6.2832*255); stateData[o4+3] = 0;
+  const o2 = (MAXF*2 + i)*4; stateData[o2+2] = f.type*40;
+});
 function writeState(t){
   for (let i=0;i<NF;i++){
     const f = forms[i], o = i*4;
     stateData[o] = f.awake ? 255 : 0; stateData[o+1] = Math.round(f.beat*255);
     stateData[o+2] = Math.round(Math.min(1, Math.max(0, (t - f.born)/1.5))*255); stateData[o+3] = Math.round(Math.min(1,f.lit)*255);
     const o1 = (MAXF + i)*4; for (let k=0;k<4;k++) stateData[o1+k] = Math.round(f.vals[k]*255);
-    const o2 = (MAXF*2 + i)*4; stateData[o2] = Math.round(f.vals[4]*255); stateData[o2+1] = Math.round(f.vals[5]*255); stateData[o2+2] = 0; stateData[o2+3] = 0;
+    const o2 = (MAXF*2 + i)*4; stateData[o2] = Math.round(f.vals[4]*255); stateData[o2+1] = Math.round(f.vals[5]*255);
   }
   stateTex.needsUpdate = true;
 }
@@ -128,16 +139,16 @@ const U = {
   uFlash: { value: 0 },
   uInk:   { value: new THREE.Color(PALETTES[0].ink) },
   uHot:   { value: new THREE.Color(PALETTES[0].hot) },
+  uCool:  { value: new THREE.Color(PALETTES[0].cool) },
   uBg:    { value: new THREE.Color(PALETTES[0].bg) },
   uCam:   { value: new THREE.Vector3() },
   uAim:   { value: new THREE.Vector3(0,0,-6) },
   uPix:   { value: renderer.getPixelRatio() },
-  uFog:   { value: 75.0 },
+  uFog:   { value: 80.0 },
   uLights:{ value: Array.from({length:MAXL}, () => new THREE.Vector4(0,0,0,0)) },
   uRipples:{ value: Array.from({length:MAXRIP}, () => new THREE.Vector4(0,0,-99,0)) },
   uForms: { value: stateTex },
-  uStep:  { value: 0 },      // 0..1 phase of the current step, for the pulse that crosses the field
-  uStepN: { value: 0 },
+  uStep:  { value: 0 },
 };
 
 const noiseGLSL = `
@@ -162,12 +173,20 @@ const lightGLSL = `
     }
     float da = length(xz - uAim.xz);
     l += 0.3 * exp(-da*da*0.3);
+    // your own aura: the ground wakes around your feet, wider when you flow
+    float dc = length(xz - uCam.xz);
+    l += (0.25 + 0.6*uVal[0]) * exp(-dc*dc*0.08);
     return l;
   }
 `;
+const stateGLSL = `
+  uniform sampler2D uForms;
+  vec4 stateRow(float idx, float row){ return texture2D(uForms, vec2((idx+0.5)/${MAXF}.0, (row+0.5)/${ROWS}.0)); }
+  float un16(float hi, float lo){ return (hi*255.0*256.0 + lo*255.0)/65535.0*${WORLD.toFixed(1)} - ${(WORLD/2).toFixed(1)}; }
+`;
 const pointFrag = `
   precision highp float;
-  uniform vec3 uInk; uniform vec3 uHot; uniform vec3 uBg; uniform float uFog;
+  uniform vec3 uInk; uniform vec3 uHot; uniform vec3 uCool; uniform vec3 uBg; uniform float uFog;
   varying float vLevel; varying float vDist; varying float vRnd; varying float vLit;
   void main(){
     vec2 c = gl_PointCoord - 0.5; float r = length(c);
@@ -178,34 +197,44 @@ const pointFrag = `
     float fog = exp(-vDist/uFog);
     float a = mark * show * fog * (0.25 + 0.75*vLevel);
     if (a < 0.02) discard;
-    vec3 col = mix(uInk, uHot, clamp(vLit*0.8, 0.0, 1.0));
+    vec3 ink = mix(uInk, uCool, clamp(vDist/90.0, 0.0, 0.7));
+    vec3 col = mix(ink, uHot, clamp(vLit*0.8, 0.0, 1.0));
     gl_FragColor = vec4(col * a * (1.0 + 1.5*vLit), a);
   }
 `;
-function pointsMat(vert, extra){
-  return new THREE.ShaderMaterial({ uniforms: Object.assign({}, U, extra||{}), vertexShader: vert, fragmentShader: pointFrag,
+const softFrag = `
+  precision highp float;
+  uniform vec3 uInk; uniform vec3 uHot; uniform vec3 uCool; uniform vec3 uBg; uniform float uFog;
+  varying float vLevel; varying float vDist; varying float vRnd; varying float vLit;
+  void main(){
+    float r = length(gl_PointCoord - 0.5);
+    float a = exp(-r*r*14.0) * vLevel * exp(-vDist/uFog);
+    if (a < 0.01) discard;
+    vec3 col = mix(uInk, uHot, clamp(vLit, 0.0, 1.0));
+    gl_FragColor = vec4(col * a, a);
+  }
+`;
+function pointsMat(vert, frag, extra){
+  return new THREE.ShaderMaterial({ uniforms: Object.assign({}, U, extra||{}), vertexShader: vert, fragmentShader: frag || pointFrag,
     transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending });
 }
-
-// ---------- ground ----------
-const GW = 360, GH = 360, GS = WORLD/GW;
-function makeGround(){
-  const n = GW*GH, pos = new Float32Array(n*3), r2 = new Float32Array(n*2);
-  let k = 0;
-  for (let j=0;j<GH;j++) for (let i=0;i<GW;i++){
-    pos[k*3] = (i-GW/2)*GS + (Math.random()-0.5)*GS*0.7; pos[k*3+1] = 0; pos[k*3+2] = (j-GH/2)*GS + (Math.random()-0.5)*GS*0.7;
-    r2[k*2] = Math.random(); r2[k*2+1] = Math.random(); k++;
-  }
+function geo(n, fill){
+  const pos = new Float32Array(n*3), loc = new Float32Array(n*3), fid = new Float32Array(n), r2 = new Float32Array(n*2);
+  for (let i=0;i<n;i++){ fill(i, pos, loc, fid, r2); }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute("aLocal", new THREE.Float32BufferAttribute(loc,3));
+  g.setAttribute("aForm", new THREE.Float32BufferAttribute(fid,1));
   g.setAttribute("aRnd", new THREE.Float32BufferAttribute(r2,2));
   return g;
 }
-const groundVert = `
-  attribute vec2 aRnd;
-  uniform float uVal[6]; uniform float uTime; uniform float uFlash; uniform vec3 uCam; uniform float uPix; uniform float uStep;
-  varying float vLevel; varying float vDist; varying float vRnd; varying float vLit;
-  ${noiseGLSL} ${lightGLSL}
+const VARY = `varying float vLevel; varying float vDist; varying float vRnd; varying float vLit;`;
+const HEAD = `attribute vec3 aLocal; attribute float aForm; attribute vec2 aRnd;
+  uniform float uTime; uniform float uFlash; uniform float uPix; uniform float uStep; uniform float uVal[6]; uniform vec3 uCam; ${VARY}`;
+
+// ---------- ground ----------
+const GW = 340, GS = WORLD/GW;
+const groundVert = `${HEAD} ${noiseGLSL} ${lightGLSL}
   void main(){
     float flow=uVal[0], burst=uVal[1], tens=uVal[2], rhy=uVal[3], drift=uVal[4], recov=uVal[5];
     vec3 p = position;
@@ -217,65 +246,91 @@ const groundVert = `
     float d = length(p.xz - uCam.xz);
     p.y += 0.3*rhy*sin(d*0.9 - uTime*(2.0+6.0*rhy));
     p.y += (burst*0.8 + uFlash*2.0) * exp(-d*0.06);
-    // the loop's step crosses the field as a faint wave from the beacon
     float dc = length(p.xz);
-    float stepWave = exp(-pow(dc - uStep*60.0, 2.0)*0.02) * 0.25;
+    float stepWave = exp(-pow(dc - uStep*70.0, 2.0)*0.02) * 0.35;
     float lit = lightAt(p.xz, uTime) + stepWave;
     p.y += lit * 0.8;
-    vLevel = clamp(h*1.2 + 0.05 + 0.4*flow + lit*0.6, 0.0, 1.0);
+    vLevel = clamp(h*1.2 + 0.08 + 0.4*flow + lit*0.6, 0.0, 1.0);
     vDist = d; vRnd = aRnd.x; vLit = lit;
     vec4 mv = modelViewMatrix * vec4(p,1.0);
     gl_Position = projectionMatrix * mv;
     gl_PointSize = (1.2 + 2.0*vLevel + 1.5*uFlash + 2.0*lit) * uPix * (8.0 / max(-mv.z, 0.8));
-  }
-`;
-scene.add(new THREE.Points(makeGround(), pointsMat(groundVert)));
+  }`;
+scene.add(new THREE.Points(geo(GW*GW, (i,pos,loc,fid,r2) => {
+  const gx = i % GW, gz = Math.floor(i/GW);
+  pos[i*3] = (gx-GW/2)*GS + (Math.random()-0.5)*GS*0.7; pos[i*3+1] = 0; pos[i*3+2] = (gz-GW/2)*GS + (Math.random()-0.5)*GS*0.7;
+  r2[i*2] = Math.random(); r2[i*2+1] = Math.random();
+}), pointsMat(groundVert)));
 
-// ---------- sky: a slow dome of distant points ----------
-function makeSky(n){
-  const pos = new Float32Array(n*3), r2 = new Float32Array(n*2);
-  for (let i=0;i<n;i++){
-    const a = Math.random()*Math.PI*2, e = Math.acos(1 - Math.random()*0.9), R = 230;
-    pos[i*3] = R*Math.sin(e)*Math.cos(a); pos[i*3+1] = R*Math.cos(e) + 2.0; pos[i*3+2] = R*Math.sin(e)*Math.sin(a);
-    r2[i*2] = Math.random(); r2[i*2+1] = Math.random();
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute(pos,3));
-  g.setAttribute("aRnd", new THREE.Float32BufferAttribute(r2,2));
-  return g;
-}
-const skyVert = `
-  attribute vec2 aRnd;
-  uniform float uVal[6]; uniform float uTime; uniform float uFlash; uniform vec3 uCam; uniform float uPix;
-  varying float vLevel; varying float vDist; varying float vRnd; varying float vLit;
+// ---------- undergrowth: short stalks everywhere, denser near forms ----------
+const UG = 70000;
+const underVert = `${HEAD} ${lightGLSL}
+  void main(){
+    float flow=uVal[0], tens=uVal[2], drift=uVal[4];
+    float u = aLocal.x;
+    float ang = drift*6.2831;
+    float wind = (0.25 + 0.9*flow) * sin(uTime*1.6 + position.x*0.3 + position.z*0.2) + tens*0.12*sin(uTime*11.0 + aRnd.x*9.0);
+    vec3 p = position;
+    float hgt = 0.25 + 0.8*aRnd.y;
+    p.y += u*hgt;
+    p.xz += vec2(cos(ang), sin(ang)) * wind * u*u * 0.6;
+    float lit = lightAt(p.xz, uTime);
+    vLevel = clamp(0.35 + 0.5*u + lit*0.8, 0.0, 1.0);
+    vDist = length(p.xz - uCam.xz); vRnd = aRnd.x; vLit = lit*1.2;
+    vec4 mv = modelViewMatrix * vec4(p,1.0);
+    gl_Position = projectionMatrix * mv;
+    gl_PointSize = (0.9 + 1.0*u + 2.0*lit) * uPix * (7.0 / max(-mv.z, 0.8));
+  }`;
+scene.add(new THREE.Points(geo(UG, (i,pos,loc,fid,r2) => {
+  let x, z;
+  if (Math.random() < 0.6 && forms.length){ const f = forms[Math.floor(Math.random()*forms.length)]; const a = Math.random()*6.28, r = 1.5 + Math.random()*5; x = f.x + Math.cos(a)*r; z = f.z + Math.sin(a)*r; }
+  else { x = (Math.random()-0.5)*WORLD; z = (Math.random()-0.5)*WORLD; }
+  pos[i*3] = x; pos[i*3+1] = 0; pos[i*3+2] = z;
+  loc[i*3] = Math.random(); r2[i*2] = Math.random(); r2[i*2+1] = Math.random();
+}), pointsMat(underVert)));
+
+// ---------- mist: soft sheets that drift low over the ground ----------
+const mistVert = `${HEAD} ${lightGLSL}
+  void main(){
+    float flow=uVal[0], drift=uVal[4], recov=uVal[5];
+    vec3 p = position;
+    float ang = drift*6.2831;
+    p.xz += vec2(cos(ang), sin(ang)) * uTime * (0.2 + 1.5*flow);
+    p.x = mod(p.x + ${(WORLD/2).toFixed(1)}, ${WORLD.toFixed(1)}) - ${(WORLD/2).toFixed(1)};
+    p.z = mod(p.z + ${(WORLD/2).toFixed(1)}, ${WORLD.toFixed(1)}) - ${(WORLD/2).toFixed(1)};
+    p.y += 0.3*sin(uTime*0.4 + aRnd.x*6.28);
+    float lit = lightAt(p.xz, uTime);
+    vLevel = (0.05 + 0.1*recov) * (0.5 + lit); vRnd = 0.0; vDist = length(p.xz - uCam.xz); vLit = lit*0.6;
+    vec4 mv = modelViewMatrix * vec4(p,1.0);
+    gl_Position = projectionMatrix * mv;
+    gl_PointSize = (40.0 + 30.0*aRnd.y) * uPix * (8.0 / max(-mv.z, 0.8));
+  }`;
+scene.add(new THREE.Points(geo(2500, (i,pos,loc,fid,r2) => {
+  pos[i*3] = (Math.random()-0.5)*WORLD; pos[i*3+1] = 0.2 + Math.random()*1.4; pos[i*3+2] = (Math.random()-0.5)*WORLD;
+  r2[i*2] = Math.random(); r2[i*2+1] = Math.random();
+}), pointsMat(mistVert, softFrag)));
+
+// ---------- sky ----------
+const skyVert = `${HEAD}
   void main(){
     float drift=uVal[4], rhy=uVal[3];
     float a = drift*uTime*0.02;
     vec3 p = position; p.xz = mat2(cos(a),-sin(a),sin(a),cos(a)) * p.xz; p += uCam;
     float tw = 0.5 + 0.5*sin(uTime*(0.5+2.0*rhy) + aRnd.x*60.0);
-    vLevel = 0.75 + 0.25*tw; vRnd = 0.0; vDist = 0.0; vLit = 0.2*tw + 0.8*uFlash;
+    vLevel = 0.75 + 0.25*tw; vRnd = 0.0; vDist = 0.0; vLit = 0.25*tw + 0.8*uFlash;
     vec4 mv = modelViewMatrix * vec4(p,1.0);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = (0.8 + 1.4*tw) * uPix;
-  }
-`;
+    gl_PointSize = (0.8 + 1.6*tw) * uPix;
+  }`;
 const skyMat = pointsMat(skyVert); skyMat.uniforms.uFog = { value: 1e9 };
-scene.add(new THREE.Points(makeSky(2500), skyMat));
+scene.add(new THREE.Points(geo(3500, (i,pos,loc,fid,r2) => {
+  const a = Math.random()*Math.PI*2, e = Math.acos(1 - Math.random()*0.92), R = 250;
+  pos[i*3] = R*Math.sin(e)*Math.cos(a); pos[i*3+1] = R*Math.cos(e) + 2.0; pos[i*3+2] = R*Math.sin(e)*Math.sin(a);
+  r2[i*2] = Math.random(); r2[i*2+1] = Math.random();
+}), skyMat));
 
 // ---------- fireflies ----------
-function makeAir(n){
-  const pos = new Float32Array(n*3), r2 = new Float32Array(n*2);
-  for (let i=0;i<n;i++){ pos[i*3] = (Math.random()-0.5)*WORLD; pos[i*3+1] = 0.3 + Math.random()*9.0; pos[i*3+2] = (Math.random()-0.5)*WORLD; r2[i*2] = Math.random(); r2[i*2+1] = Math.random(); }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute(pos,3));
-  g.setAttribute("aRnd", new THREE.Float32BufferAttribute(r2,2));
-  return g;
-}
-const airVert = `
-  attribute vec2 aRnd;
-  uniform float uVal[6]; uniform float uTime; uniform float uFlash; uniform vec3 uCam; uniform float uPix;
-  varying float vLevel; varying float vDist; varying float vRnd; varying float vLit;
-  ${lightGLSL}
+const airVert = `${HEAD} ${lightGLSL}
   void main(){
     float flow=uVal[0], burst=uVal[1], tens=uVal[2], rhy=uVal[3], drift=uVal[4];
     vec3 p = position;
@@ -285,63 +340,50 @@ const airVert = `
     p.z = mod(p.z + ${(WORLD/2).toFixed(1)}, ${WORLD.toFixed(1)}) - ${(WORLD/2).toFixed(1)};
     p.y += 0.6*sin(uTime*0.8 + aRnd.x*6.28) + 1.5*tens*sin(uTime*7.0 + aRnd.y*6.28);
     float blink = 0.5 + 0.5*sin(uTime*(1.0+5.0*rhy) + aRnd.x*40.0);
-    vLit = lightAt(p.xz, uTime) + blink*0.6 + uFlash;
+    vLit = lightAt(p.xz, uTime) + blink*0.7 + uFlash;
     vLevel = 0.9; vRnd = 0.0; vDist = length(p.xz - uCam.xz);
     vec4 mv = modelViewMatrix * vec4(p,1.0);
     gl_Position = projectionMatrix * mv;
     gl_PointSize = (1.0 + 1.6*blink + 2.0*burst) * uPix * (7.0 / max(-mv.z, 0.8));
-  }
-`;
-scene.add(new THREE.Points(makeAir(5000), pointsMat(airVert)));
+  }`;
+scene.add(new THREE.Points(geo(7000, (i,pos,loc,fid,r2) => {
+  pos[i*3] = (Math.random()-0.5)*WORLD; pos[i*3+1] = 0.3 + Math.random()*10.0; pos[i*3+2] = (Math.random()-0.5)*WORLD;
+  r2[i*2] = Math.random(); r2[i*2+1] = Math.random();
+}), pointsMat(airVert)));
 
-// ---------- forms: one Points object per type ----------
-// attributes: aLocal (u, v, w in 0..1), aForm (index), aRnd
-const formVertCommon = `
-  attribute vec3 aLocal; attribute float aForm; attribute vec2 aRnd;
-  uniform float uVal[6]; uniform float uTime; uniform float uFlash; uniform vec3 uCam; uniform float uPix; uniform sampler2D uForms;
-  uniform vec4 uFormPos[${MAXF}];   // x, z, size, dir
-  uniform vec4 uFormSeed[${MAXF}];  // seed, 0, 0, 0
-  varying float vLevel; varying float vDist; varying float vRnd; varying float vLit;
-  ${lightGLSL}
-  vec4 stateRow(float row){ return texture2D(uForms, vec2((aForm+0.5)/${MAXF}.0, (row+0.5)/3.0)); }
-`;
+// ---------- forms ----------
 function formVert(body){
-  return formVertCommon + `
+  return `${HEAD} ${lightGLSL} ${stateGLSL}
   void main(){
-    vec4 S0 = stateRow(0.0); vec4 S1 = stateRow(1.0); vec4 S2 = stateRow(2.0);
+    vec4 S0 = stateRow(aForm, 0.0), S1 = stateRow(aForm, 1.0), S2 = stateRow(aForm, 2.0), S3 = stateRow(aForm, 3.0), S4 = stateRow(aForm, 4.0);
     float awake = S0.r, beat = S0.g, age = S0.b, litIn = S0.a;
     float fFlow = S1.r, fBurst = S1.g, fTens = S1.b, fRhy = S1.a, fDrift = S2.r, fRecov = S2.g;
     float liveFlow = uVal[0], liveTens = uVal[2], liveRhy = uVal[3], liveDrift = uVal[4];
-    int fi = int(aForm + 0.5);
-    vec4 P = uFormPos[0]; vec4 Q = uFormSeed[0];
-    for (int i=0;i<${MAXF};i++){ if (i == fi){ P = uFormPos[i]; Q = uFormSeed[i]; } }
-    float sz = P.z, dir = P.w, sd = Q.x;
+    vec2 F = vec2(un16(S3.r, S3.g), un16(S3.b, S3.a));
+    float sz = S4.r*16.0, dir = S4.g*6.2832, sd = S4.b*6.2832;
     float u = aLocal.x, w = aLocal.y, q = aLocal.z;
     vec3 p; float level; float glow;
     ${body}
-    vec3 world = vec3(P.x, 0.0, P.y) + p;
-    float lit = lightAt(world.xz, uTime) + glow + awake*(0.25 + 1.3*beat);
-    vLevel = clamp(level + 0.3*awake + 0.5*beat, 0.0, 1.0);
+    vec3 world = vec3(F.x, 0.0, F.y) + p;
+    float lit = lightAt(world.xz, uTime) + glow + awake*(0.3 + 1.4*beat) + litIn*0.5;
+    vLevel = clamp(level + 0.3*awake + 0.5*beat + 0.2*litIn, 0.0, 1.0);
     vDist = length(world.xz - uCam.xz); vRnd = aRnd.x; vLit = lit;
     vec4 mv = viewMatrix * vec4(world, 1.0);
     gl_Position = projectionMatrix * mv;
     gl_PointSize = (1.2 + 1.8*vLevel + 2.5*beat + 1.5*litIn) * uPix * (8.0 / max(-mv.z, 0.8));
   }`;
 }
-// reed: a tall thin stalk that leans in the wind; awake, rings travel up it and it stands taller
 const reedBody = `
     float wind = liveFlow * 0.6 * sin(uTime*1.3 + sd) + liveTens*0.15*sin(uTime*9.0 + sd + u*5.0);
     float tall = sz * (1.0 + 0.5*awake*fBurst);
     float y = u * tall;
     float lean = wind * u*u;
-    float r = 0.05 + 0.12*(1.0-u) * (1.0 + 2.0*awake*fTens) ;
+    float r = 0.05 + 0.12*(1.0-u) * (1.0 + 2.0*awake*fTens);
     float ang = w*6.2831 + awake*fDrift*uTime*2.0;
     p = vec3(cos(ang)*r*q + lean, y, sin(ang)*r*q);
     float ring = 0.5 + 0.5*sin(u*20.0 - uTime*(1.0+8.0*fRhy));
     level = 0.45 + 0.4*(1.0-u);
-    glow = awake * ring * 0.8;
-`;
-// stone: a low dense mound; awake, it breathes with the beat and glows from inside
+    glow = awake * ring * 0.8;`;
 const stoneBody = `
     float rr = pow(q, 0.33);
     float th = w*6.2831, ph = acos(1.0 - u);
@@ -350,9 +392,7 @@ const stoneBody = `
     p = d * rr * sz * breathe * vec3(1.0, 0.6, 1.0);
     p.y = abs(p.y);
     level = 0.5 + 0.5*(1.0-rr);
-    glow = awake * (1.0-rr) * 0.7;
-`;
-// ring: flat on the ground; awake, it spins and a bright spot runs round it on the beat
+    glow = awake * (1.0-rr) * 0.7;`;
 const ringBody = `
     float ang = u*6.2831 + awake*fDrift*uTime*1.5;
     float tube = 0.12 + 0.1*q;
@@ -360,9 +400,7 @@ const ringBody = `
     p = vec3(cos(ang)*(R + tube*cos(w*6.2831)), 0.08 + tube*sin(w*6.2831) + 0.25*awake*beat, sin(ang)*(R + tube*cos(w*6.2831)));
     float runner = exp(-pow(fract(u - uTime*(0.2+fRhy)) , 2.0)*40.0);
     level = 0.6;
-    glow = awake * runner * 1.2;
-`;
-// arc: a standing half ring you can walk under; awake, light pours along it
+    glow = awake * runner * 1.2;`;
 const arcBody = `
     float ang = u*3.14159;
     float R = sz;
@@ -374,9 +412,7 @@ const arcBody = `
     p = base + vec3(0.0, sway*sin(ang), 0.0);
     float pour = 0.5 + 0.5*sin(ang*6.0 - uTime*(2.0+6.0*fRhy));
     level = 0.55 + 0.3*sin(ang);
-    glow = awake * (0.3 + 0.9*pour*beat);
-`;
-// thread: a wavy line hanging in the air; awake, it shimmers and tightens with tension
+    glow = awake * (0.3 + 0.9*pour*beat);`;
 const threadBody = `
     vec2 ax = vec2(cos(dir), sin(dir));
     float along = (u - 0.5) * sz;
@@ -385,49 +421,72 @@ const threadBody = `
     float spread = 0.06 + 0.2*q;
     p = vec3(ax.x*along + spread*cos(w*6.2831), sag + shimmer + spread*sin(w*6.2831) + liveTens*0.1*sin(uTime*9.0+u*7.0), ax.y*along + spread*sin(w*6.2831)*0.3);
     level = 0.55;
-    glow = awake * (0.4 + abs(shimmer)*4.0);
-`;
+    glow = awake * (0.4 + abs(shimmer)*4.0);`;
 const BODIES = [reedBody, stoneBody, ringBody, arcBody, threadBody];
-const PER_TYPE = [1400, 2400, 1800, 2600, 1500];
-
-const formPos = Array.from({length:MAXF}, () => new THREE.Vector4());
-const formSeed = Array.from({length:MAXF}, () => new THREE.Vector4());
-forms.forEach((f,i) => { formPos[i].set(f.x, f.z, f.size, f.dir); formSeed[i].set(f.seed,0,0,0); });
-
+const PER_TYPE = [900, 1800, 1400, 2200, 1200];
 for (let type=0; type<5; type++){
-  const idx = forms.map((f,i)=>f.type===type?i:-1).filter(i=>i>=0);
+  const idx = forms.map((f,i)=>f.type===type && i<MAXF ? i : -1).filter(i=>i>=0);
   const per = PER_TYPE[type], n = idx.length*per;
-  const pos = new Float32Array(n*3), loc = new Float32Array(n*3), fid = new Float32Array(n), r2 = new Float32Array(n*2);
-  let k = 0;
-  for (const i of idx) for (let j=0;j<per;j++){
+  const g = geo(n, (k,pos,loc,fid,r2) => {
     loc[k*3] = Math.random(); loc[k*3+1] = Math.random(); loc[k*3+2] = Math.random();
-    fid[k] = i; r2[k*2] = Math.random(); r2[k*2+1] = Math.random(); k++;
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute(pos,3));
-  g.setAttribute("aLocal", new THREE.Float32BufferAttribute(loc,3));
-  g.setAttribute("aForm", new THREE.Float32BufferAttribute(fid,1));
-  g.setAttribute("aRnd", new THREE.Float32BufferAttribute(r2,2));
-  const m = pointsMat(formVert(BODIES[type]), { uFormPos: { value: formPos }, uFormSeed: { value: formSeed } });
-  const pts = new THREE.Points(g, m); pts.frustumCulled = false;
-  scene.add(pts);
+    fid[k] = idx[Math.floor(k/per)]; r2[k*2] = Math.random(); r2[k*2+1] = Math.random();
+  });
+  const pts = new THREE.Points(g, pointsMat(formVert(BODIES[type]))); pts.frustumCulled = false; scene.add(pts);
 }
 
-// ---------- the beacon: your live signature at the centre of the world ----------
-const BN = 14000;
+// ---------- sparks: rise from awake forms ----------
+const sparkVert = `${HEAD} ${lightGLSL} ${stateGLSL}
+  void main(){
+    vec4 S0 = stateRow(aForm, 0.0), S1 = stateRow(aForm, 1.0), S3 = stateRow(aForm, 3.0), S4 = stateRow(aForm, 4.0), S2 = stateRow(aForm, 2.0);
+    float awake = S0.r, beat = S0.g; float fFlow = S1.r, fRhy = S1.a, fDrift = S2.r; float type = S2.b/40.0*255.0/255.0*255.0/40.0;
+    vec2 F = vec2(un16(S3.r, S3.g), un16(S3.b, S3.a)); float sz = S4.r*16.0;
+    float life = fract(uTime*(0.12 + 0.25*fRhy) + aRnd.x);
+    float ang = aRnd.y*6.2831 + life*4.0*fDrift;
+    float r = (0.3 + 0.7*aLocal.x) * (0.5 + 0.3*sz) * (1.0 - 0.5*life);
+    float base = (S2.b > 0.6) ? 3.5 : 0.0;   // threads hang in the air
+    vec3 p = vec3(F.x + cos(ang)*r, base + life*(3.0 + 6.0*fFlow) + 0.2*sin(uTime*5.0+aRnd.x*20.0), F.y + sin(ang)*r);
+    float fade = sin(life*3.14159);
+    vLevel = awake * fade * (0.6 + 0.6*beat); vRnd = 0.0; vDist = length(p.xz - uCam.xz); vLit = 0.8 + beat;
+    vec4 mv = modelViewMatrix * vec4(p,1.0);
+    gl_Position = projectionMatrix * mv;
+    gl_PointSize = (1.2 + 2.0*beat) * uPix * (7.0 / max(-mv.z, 0.8)) * awake;
+  }`;
+scene.add((() => { const n = 24000; const pts = new THREE.Points(geo(n, (i,pos,loc,fid,r2) => {
+  fid[i] = Math.floor(Math.random()*NF); loc[i*3] = Math.random(); r2[i*2] = Math.random(); r2[i*2+1] = Math.random();
+}), pointsMat(sparkVert)); pts.frustumCulled = false; return pts; })());
+
+// ---------- your trail: glyphs left where you walk ----------
+const TRN = 2400; let trailHead = 0;
+const trailPos = new Float32Array(TRN*3), trailBorn = new Float32Array(TRN).fill(-99);
+const trailGeo = new THREE.BufferGeometry();
+trailGeo.setAttribute("position", new THREE.Float32BufferAttribute(trailPos,3));
+trailGeo.setAttribute("aBorn", new THREE.Float32BufferAttribute(trailBorn,1));
+const trailVert = `attribute float aBorn; uniform float uTime; uniform float uPix; uniform vec3 uCam; ${VARY}
+  void main(){
+    float age = uTime - aBorn; float life = 1.0 - clamp(age/12.0, 0.0, 1.0);
+    vec3 p = position; p.y += 0.05 + age*0.02;
+    vLevel = life*0.9; vRnd = 0.0; vDist = length(p.xz - uCam.xz); vLit = life*0.8;
+    vec4 mv = modelViewMatrix * vec4(p,1.0);
+    gl_Position = projectionMatrix * mv;
+    gl_PointSize = (1.0 + 1.5*life) * uPix * (7.0 / max(-mv.z, 0.8)) * step(0.001, life);
+  }`;
+const trail = new THREE.Points(trailGeo, pointsMat(trailVert)); trail.frustumCulled = false; scene.add(trail);
+let lastTrail = 0;
+function dropTrail(t){
+  for (let k=0;k<3;k++){
+    const i = trailHead; trailHead = (trailHead+1) % TRN;
+    trailPos[i*3] = player.pos.x + (Math.random()-0.5)*0.6; trailPos[i*3+1] = 0; trailPos[i*3+2] = player.pos.z + (Math.random()-0.5)*0.6;
+    trailBorn[i] = t;
+  }
+  trailGeo.attributes.position.needsUpdate = true; trailGeo.attributes.aBorn.needsUpdate = true;
+}
+
+// ---------- the beacon: your live signature at the centre ----------
 (function(){
-  const pos = new Float32Array(BN*3), r2 = new Float32Array(BN*2);
-  for (let i=0;i<BN;i++){ const a = Math.random()*Math.PI*2, r = Math.pow(Math.random(),0.5); pos[i*3]=Math.cos(a)*r; pos[i*3+1]=Math.random(); pos[i*3+2]=Math.sin(a)*r; r2[i*2]=Math.random(); r2[i*2+1]=a; }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute(pos,3));
-  g.setAttribute("aRnd", new THREE.Float32BufferAttribute(r2,2));
-  const vert = `
-    attribute vec2 aRnd;
-    uniform float uVal[6]; uniform float uTime; uniform float uFlash; uniform vec3 uCam; uniform float uPix;
-    varying float vLevel; varying float vDist; varying float vRnd; varying float vLit;
+  const vert = `${HEAD}
     void main(){
       float flow=uVal[0], burst=uVal[1], tens=uVal[2], rhy=uVal[3], drift=uVal[4], recov=uVal[5];
-      float height = 14.0 + 20.0*burst + 8.0*flow;
+      float height = 16.0 + 22.0*burst + 8.0*flow;
       float radius = 0.5 + 2.2*tens;
       vec3 p = position;
       float y = p.y*height;
@@ -442,7 +501,11 @@ const BN = 14000;
       gl_Position = projectionMatrix * mv;
       gl_PointSize = (1.3 + 1.6*vLevel + 2.0*uFlash) * uPix * (8.0 / max(-mv.z, 0.8));
     }`;
-  const pts = new THREE.Points(g, pointsMat(vert)); pts.frustumCulled = false; scene.add(pts);
+  const pts = new THREE.Points(geo(14000, (i,pos,loc,fid,r2) => { const a = Math.random()*Math.PI*2, r = Math.pow(Math.random(),0.5); pos[i*3]=Math.cos(a)*r; pos[i*3+1]=Math.random(); pos[i*3+2]=Math.sin(a)*r; r2[i*2]=Math.random(); r2[i*2+1]=a; }), pointsMat(vert));
+  pts.frustumCulled = false; scene.add(pts);
+  // the beacon's light on the ground
+  const halo = new THREE.Points(geo(1, (i,pos,loc,fid,r2)=>{ pos[1]=0.3; r2[0]=0.5; r2[1]=0.5; }), pointsMat(`${HEAD} void main(){ vLevel = 0.35 + 0.3*uVal[1]; vRnd=0.0; vDist=length(uCam.xz); vLit=0.4+uFlash; vec4 mv = modelViewMatrix*vec4(position,1.0); gl_Position = projectionMatrix*mv; gl_PointSize = 260.0*uPix*(8.0/max(-mv.z,0.8)); }`, softFrag));
+  halo.frustumCulled = false; scene.add(halo);
 })();
 
 // ---------- sound: five voices, one loop ----------
@@ -452,10 +515,10 @@ const audio = {
     if (this.ctx) return;
     const C = this.ctx = new (window.AudioContext||window.webkitAudioContext)();
     this.master = C.createGain(); this.master.gain.value = 0.25; this.master.connect(C.destination);
-    const len = C.sampleRate*2.6, buf = C.createBuffer(2, len, C.sampleRate);
-    for (let ch=0; ch<2; ch++){ const d = buf.getChannelData(ch); for (let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, 2.8); }
+    const len = C.sampleRate*3.2, buf = C.createBuffer(2, len, C.sampleRate);
+    for (let ch=0; ch<2; ch++){ const d = buf.getChannelData(ch); for (let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, 3.0); }
     this.verb = C.createConvolver(); this.verb.buffer = buf;
-    const vg = C.createGain(); vg.gain.value = 0.55; this.verb.connect(vg); vg.connect(this.master);
+    const vg = C.createGain(); vg.gain.value = 0.6; this.verb.connect(vg); vg.connect(this.master);
     const nl = C.sampleRate*1.0, nb = C.createBuffer(1, nl, C.sampleRate); const nd = nb.getChannelData(0); for (let i=0;i<nl;i++) nd[i] = Math.random()*2-1; this.noise = nb;
     this.drone = C.createOscillator(); this.drone.type = "sawtooth"; this.drone.frequency.value = 55;
     this.droneFilter = C.createBiquadFilter(); this.droneFilter.type = "lowpass"; this.droneFilter.frequency.value = 120;
@@ -468,18 +531,17 @@ const audio = {
     if (!this.ctx) return; const t = this.ctx.currentTime;
     this.droneGain.gain.setTargetAtTime(0.03 + 0.1*vals[0]*(1-vals[5]*0.5), t, 0.1);
     this.droneFilter.frequency.setTargetAtTime(80 + 900*vals[2] + 400*vals[1], t, 0.08);
+    this.drone.frequency.setTargetAtTime(55 * Math.pow(2, Math.floor(vals[4]*5)/12*2), t, 0.3);
   },
   out(node, x, z, wet){
     const C = this.ctx;
     const rel = new THREE.Vector3(x - player.pos.x, 0, z - player.pos.z).applyAxisAngle(new THREE.Vector3(0,1,0), -player.yaw);
     const dist = Math.max(1, rel.length()); const att = C.createGain(); att.gain.value = 1.2 / Math.sqrt(dist);
-    node.connect(att);
-    let last = att;
+    node.connect(att); let last = att;
     if (C.createStereoPanner){ const pan = C.createStereoPanner(); pan.pan.value = Math.max(-1, Math.min(1, rel.x / 14)); att.connect(pan); last = pan; }
     last.connect(this.master);
     const wg = C.createGain(); wg.gain.value = wet; last.connect(wg); wg.connect(this.verb);
   },
-  // the scale: drift chooses the root, flow chooses the degree
   pitch(vals, octave){
     const scale = [0,2,4,7,9,12,14,16,19];
     const idx = Math.min(scale.length-1, Math.floor(vals[0]*scale.length));
@@ -488,14 +550,14 @@ const audio = {
   },
   play(type, vals, when, x, z){
     if (!this.ctx) return; const C = this.ctx;
-    if (type === 0){            // reed: pluck
+    if (type === 0){
       const f = this.pitch(vals, 2);
       const o = C.createOscillator(); o.type = "triangle"; o.frequency.value = f;
       const lp = C.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.setValueAtTime(400 + 5000*(1-vals[2]), when); lp.frequency.exponentialRampToValueAtTime(200, when+0.4);
       const g = C.createGain(); const dec = 0.12 + 0.6*vals[5];
       g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(0.7, when+0.005); g.gain.exponentialRampToValueAtTime(0.0001, when+dec);
       o.connect(lp); lp.connect(g); this.out(g, x, z, 0.4); o.start(when); o.stop(when+dec+0.05);
-    } else if (type === 1){     // stone: thud
+    } else if (type === 1){
       const o = C.createOscillator(); o.type = "sine";
       const f0 = 90 + 60*vals[1]; o.frequency.setValueAtTime(f0, when); o.frequency.exponentialRampToValueAtTime(35, when+0.25);
       const g = C.createGain(); const dec = 0.2 + 0.5*vals[5];
@@ -504,20 +566,20 @@ const audio = {
       const n = C.createBufferSource(); n.buffer = this.noise; const hp = C.createBiquadFilter(); hp.type = "bandpass"; hp.frequency.value = 1500; const ng = C.createGain();
       ng.gain.setValueAtTime(0.25*vals[1]+0.05, when); ng.gain.exponentialRampToValueAtTime(0.0001, when+0.05);
       n.connect(hp); hp.connect(ng); this.out(ng, x, z, 0.1); n.start(when); n.stop(when+0.1);
-    } else if (type === 2){     // ring: tick
+    } else if (type === 2){
       const n = C.createBufferSource(); n.buffer = this.noise;
       const hp = C.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 3000 + 6000*vals[2];
       const g = C.createGain(); const dec = 0.03 + 0.25*vals[5]*(1-vals[1]);
       g.gain.setValueAtTime(0.5, when); g.gain.exponentialRampToValueAtTime(0.0001, when+dec);
       n.connect(hp); hp.connect(g); this.out(g, x, z, 0.15); n.start(when); n.stop(when+dec+0.02);
-    } else if (type === 3){     // arc: hum, held for most of a step
+    } else if (type === 3){
       const f = this.pitch(vals, 0.5);
       const o1 = C.createOscillator(), o2 = C.createOscillator(); o1.type = o2.type = "sawtooth"; o1.frequency.value = f; o2.frequency.value = f*1.006;
       const lp = C.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 200 + 1800*(1-vals[2]); lp.Q.value = 1 + 6*vals[2];
       const g = C.createGain(); const len = 0.6 + 1.6*vals[5];
       g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(0.35, when+0.25); g.gain.setValueAtTime(0.35, when+len*0.6); g.gain.exponentialRampToValueAtTime(0.0001, when+len);
       o1.connect(lp); o2.connect(lp); lp.connect(g); this.out(g, x, z, 0.7); o1.start(when); o2.start(when); o1.stop(when+len+0.05); o2.stop(when+len+0.05);
-    } else {                    // thread: bell (FM)
+    } else {
       const f = this.pitch(vals, 3);
       const c = C.createOscillator(), m = C.createOscillator(), mg = C.createGain(); c.type = m.type = "sine";
       c.frequency.value = f; m.frequency.value = f * (1.4 + Math.floor(vals[4]*3)); mg.gain.setValueAtTime(f*(1+3*vals[2]), when); mg.gain.exponentialRampToValueAtTime(1, when+0.8);
@@ -530,16 +592,16 @@ const audio = {
 };
 
 // ---------- the loop ----------
-const BPM = 84, STEP = 60/BPM/2;   // eighth notes
+const BPM = 84, STEP = 60/BPM/2;
 let loopStart = 0, stepIndex = -1;
-function stepFor(vals){ return vals[3] > 0.7 ? 2 : vals[3] > 0.4 ? 4 : vals[3] > 0.15 ? 8 : 16; }  // rhythm sets how often a form plays
+function stepFor(vals){ return vals[3] > 0.7 ? 2 : vals[3] > 0.4 ? 4 : vals[3] > 0.15 ? 8 : 16; }
 
 // ---------- waking forms ----------
 let ripples = [];
 function addRipple(x, z, s){ ripples.push({ x, z, t0: U.uTime.value, s }); if (ripples.length > MAXRIP) ripples.shift(); }
 function wake(f){
   f.awake = true; f.vals = v.slice(); f.born = U.uTime.value; f.beat = 1.0;
-  const nowStep = stepIndex < 0 ? 0 : stepIndex; f.step = nowStep % STEPS; f.every = stepFor(f.vals);
+  f.step = Math.max(0, stepIndex) % STEPS; f.every = stepFor(f.vals);
   if (audio.ctx) audio.play(f.type, f.vals, audio.now() + 0.02, f.x, f.z);
   addRipple(f.x, f.z, 1.0); burstFlash = Math.max(burstFlash, 0.6);
 }
@@ -547,7 +609,7 @@ function sleep(f){ f.awake = false; f.beat = 0; }
 function sleepAll(){ for (const f of forms) sleep(f); }
 
 // ---------- player ----------
-const player = { pos: new THREE.Vector3(0, 1.6, 14), yaw: 0, pitch: 0, keys: {}, bob: 0, vyaw: 0, vpitch: 0 };
+const player = { pos: new THREE.Vector3(0, 1.6, 16), yaw: 0, pitch: 0, keys: {}, bob: 0, vyaw: 0, vpitch: 0 };
 let locked = false, aimed = null;
 const enter = document.getElementById("enter"), cross = document.getElementById("cross"), aimEl = document.getElementById("aim");
 enter.addEventListener("click", () => { audio.start(); loopStart = audio.now(); canvas.requestPointerLock && canvas.requestPointerLock(); });
@@ -560,7 +622,8 @@ canvas.addEventListener("mousedown", (e) => { if (locked && e.button === 0) clic
 function aimRay(){ return new THREE.Vector3(0,0,-1).applyEuler(new THREE.Euler(player.pitch, player.yaw, 0, "YXZ")); }
 function pickForm(){
   const o = player.pos, d = aimRay(); let best = null, bestScore = 1e9;
-  for (const f of forms){
+  for (let i=0;i<NF;i++){
+    const f = forms[i];
     const cy = f.type === 4 ? 4.0 : f.type === 3 ? f.size*0.5 : f.type === 0 ? f.size*0.5 : 0.4;
     const c = new THREE.Vector3(f.x, cy, f.z).sub(o);
     const t = c.dot(d); if (t < 0.5 || t > 60) continue;
@@ -575,9 +638,9 @@ function click(){ const f = pickForm(); if (!f) return; if (f.awake) sleep(f); e
 
 function setPalette(i){
   palette = i % PALETTES.length; const P = PALETTES[palette];
-  U.uInk.value.set(P.ink); U.uHot.value.set(P.hot); U.uBg.value.set(P.bg);
+  U.uInk.value.set(P.ink); U.uHot.value.set(P.hot); U.uBg.value.set(P.bg); U.uCool.value.set(P.cool);
   document.body.style.color = palette === 3 ? "#1d1d1b" : "#d8d8d4";
-  bloom.strength = palette === 3 ? 0.3 : 0.9;
+  bloom.strength = palette === 3 ? 0.3 : 1.1;
 }
 function onKey(e){
   const k = e.key.toLowerCase();
@@ -588,7 +651,7 @@ function onKey(e){
   else if (k === "c") click();
 }
 
-// ---------- input: WebSocket or sim ----------
+// ---------- input ----------
 const statusEl = document.getElementById("status");
 function status(){ statusEl.textContent = sim ? (ws && ws.readyState===1 ? "SIM (device connected, press S)" : "SIM") : "LIVE"; }
 function connect(){
@@ -652,10 +715,11 @@ function frame(now){
   if (player.keys["KeyD"]) { player.pos.addScaledVector(right, sp); moving = true; }
   const lim = WORLD/2 - 3; player.pos.x = Math.max(-lim, Math.min(lim, player.pos.x)); player.pos.z = Math.max(-lim, Math.min(lim, player.pos.z));
   player.bob += moving ? dt*(run ? 11 : 7) : 0;
+  if (moving && t - lastTrail > 0.09){ dropTrail(t); lastTrail = t; }
   cam.position.copy(player.pos); cam.position.y += Math.sin(player.bob)*0.04*(moving ? 1 : 0);
   cam.rotation.set(player.pitch, player.yaw, 0, "YXZ");
+  cam.fov = 70 + 6*burstFlash; cam.updateProjectionMatrix();
 
-  // the loop
   if (audio.ctx){
     const an = audio.now(); const si = Math.floor((an - loopStart)/STEP);
     if (si !== stepIndex){
@@ -671,8 +735,7 @@ function frame(now){
   for (let i=0;i<6;i++) U.uVal.value[i] = v[i];
   U.uTime.value = t; U.uFlash.value = burstFlash; U.uCam.value.copy(player.pos);
   for (let i=0;i<MAXRIP;i++){ const r = ripples[i]; if (r) U.uRipples.value[i].set(r.x, r.z, r.t0, r.s); else U.uRipples.value[i].set(0,0,-99,0); }
-  // lights: the brightest awake forms near you
-  const awakeForms = forms.filter(f=>f.awake).sort((a,b)=> (Math.hypot(a.x-player.pos.x,a.z-player.pos.z)) - (Math.hypot(b.x-player.pos.x,b.z-player.pos.z))).slice(0, MAXL);
+  const awakeForms = forms.filter(f=>f.awake).sort((a,b)=> Math.hypot(a.x-player.pos.x,a.z-player.pos.z) - Math.hypot(b.x-player.pos.x,b.z-player.pos.z)).slice(0, MAXL);
   for (let i=0;i<MAXL;i++){ const f = awakeForms[i]; if (f) U.uLights.value[i].set(f.x, f.z, 0.3 + 1.0*f.beat, 0); else U.uLights.value[i].set(0,0,0,0); }
   for (const f of forms) f.lit = aimed === f ? 1 : 0;
   writeState(t);
