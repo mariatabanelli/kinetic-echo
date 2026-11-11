@@ -4,7 +4,7 @@ Two browser pieces, one file each, Three.js from a CDN, nothing to install. Both
 
 ## index.html · World
 
-A first-person world grown from a seed: a plane of glyph-points, a sky, fireflies, and 103 forms of five kinds placed across 150 metres. At the centre stands the beacon, your live signature: tall with burst, wide with tension, twisting with flow, spinning with drift, ringed by rhythm, settling with recovery.
+A first-person world grown from a seed: a plane of glyph-points, undergrowth, mist, a sky, fireflies, and 272 forms of eight kinds, each with variants, placed across 96 metres with the thickest growth around where you start. At the centre stands the beacon, your live signature: tall with burst, wide with tension, twisting with flow, spinning with drift, ringed by rhythm, settling with recovery.
 
 The ground moves the way the body moves: flow is the wind, drift turns it, tension raises the terrain, rhythm sends a wave out from where you stand, burst lifts everything near you for a moment.
 
@@ -16,7 +16,12 @@ Aim at a form and click: it wakes with the six values of that instant, lights th
 | stone | low mound, breathes on the beat | thud (pitch drop set by burst) plus a click |
 | ring | flat on the ground, a spot runs round it | tick (noise, highpass by tension) |
 | arc | standing half-ring you walk under, light pours along it | hum (two detuned saws, held, filter by tension) |
-| thread | wavy line in the air, tightens with tension | bell (FM, ratio from drift, long decay from recovery) |
+| thread | wavy line in the air; also curtains and four-strand webs | bell (FM, ratio from drift, long decay from recovery) |
+| bloom | stalk with a radial head that opens when awake | three-note arpeggio |
+| pillar | tower of stacked rings that counter-rotate | organ, low and held |
+| fold | standing ribbon that waves | a swell of filtered air |
+
+Reeds come plain, forked or with seed heads; stones as mounds, slabs, boulders or clusters; rings as rings or spirals; arcs as arcs, twisted arcs or standing portals.
 
 Click an awake form to put it back to sleep. R sleeps everything. Drift chooses the root note for the whole world, so the key moves as you drift.
 
