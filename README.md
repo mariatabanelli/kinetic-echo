@@ -4,9 +4,15 @@ A sleeve-worn movement instrument. An IMU on the forearm reads six qualities of 
 
 **Status (Nov 2026):** working prototype on breadboard (display, IMU, vibration, sound). Moving from Raspberry Pi Pico 2 W to a Waveshare RP2350-Zero inside a 3D-printed puck that seats in a sewn sleeve bezel. First carrier PCB was fabricated but not populated; a round carrier is being redesigned.
 
-![System diagram](docs/images/system.svg)
+![System diagram](docs/images/system-diagram.png)
 
 _Breadboard photo to follow._
+
+## The display
+
+![Display states](docs/images/display-states.png)
+
+Master key and the six states. The round display is divided into six wedges, one per quality; the character field is densest at the centre and in the wedge whose value is highest.
 
 ## How it works
 
